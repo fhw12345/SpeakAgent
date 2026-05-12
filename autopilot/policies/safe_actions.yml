@@ -1,0 +1,4 @@
+allowed_commit_branch_prefix: "autopilot/"
+forbidden_branches: ["main", "master"]
+require_eval_pass: true
+require_unit_pass: true

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+data/sessions/
+data/logs/
+data/listening/
+data/vocab_srs.sqlite
+autopilot/runs/
+.claude/worktrees/

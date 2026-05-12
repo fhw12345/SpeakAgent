@@ -1,0 +1,3 @@
+max_calls_per_minute: 60
+pause_seconds_on_trip: 60
+trips_per_hour_before_escalate: 3

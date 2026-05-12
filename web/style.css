@@ -1,0 +1,14 @@
+body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 1rem; background: #fafafa; }
+header { display: flex; justify-content: space-between; align-items: baseline; }
+#dialogue { min-height: 200px; border: 1px solid #ddd; padding: 1rem; background: white; border-radius: 8px; }
+#dialogue .agent { color: #035; margin: .5rem 0; }
+#dialogue .user  { color: #303; margin: .5rem 0; font-style: italic; }
+#dialogue .translation { color: #888; font-size: .85rem; margin: -.3rem 0 .2rem 1rem; }
+#dialogue .gloss { color: #06a; font-size: .8rem; margin: -.2rem 0 .4rem 1rem; font-family: 'Cambria Math', 'Times New Roman', serif; }
+#controls { margin-top: 1rem; display: flex; gap: .5rem; align-items: center; }
+button { padding: .5rem 1rem; font-size: 1rem; }
+button:disabled { opacity: .5; }
+#status { color: #666; }
+#scorecard { margin-top: 1rem; padding: 1rem; background: #fff8e1; border-radius: 8px; }
+#dev-panel { margin-top: 2rem; }
+#dev-log { background: #111; color: #9f9; padding: .5rem; max-height: 240px; overflow: auto; font-size: .8rem; }
