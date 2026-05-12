@@ -16,6 +16,9 @@
   let audioCtx = null;
   let recording = false;
   let currentLesson = null; // { id, order }
+  let ttsPlayer = null;     // Phase 4: TtsPlayer instance when VAD on
+  let micClient = null;     // Phase 4: MicClient instance when VAD on
+  window.__speakAgentMetrics = window.__speakAgentMetrics || {};
 
   function log(msg) {
     console.log(msg);
@@ -72,12 +75,25 @@
   async function startSession() {
     startBtn.disabled = true;
     statusEl.textContent = "connecting";
+    // Phase 4: read VAD flag from server. Fail open (off) if /api/config errors.
+    let vadOn = false;
+    try {
+      const r = await fetch("/api/config");
+      if (r.ok) vadOn = (await r.json()).vad === "on";
+    } catch (_) { vadOn = false; }
+    window.SPEAKAGENT_VAD = vadOn ? "on" : "off";
+    if (vadOn && (typeof MicClient === "undefined" || !MicClient.isSupported())) {
+      log("AudioWorklet unsupported — falling back to PTT");
+      vadOn = false;
+      window.SPEAKAGENT_VAD = "off";
+    }
     ws = new WebSocket(`ws://${location.host}/ws/session`);
     ws.binaryType = "arraybuffer";
 
     let currentBuffer = null;
     const playQueue = [];
     let workerRunning = false;
+    if (vadOn && typeof TtsPlayer !== "undefined") ttsPlayer = new TtsPlayer();
 
     async function playWorker() {
       if (workerRunning) return;
@@ -108,17 +124,35 @@
         if (msg.type === "session_start") {
           statusEl.textContent = "ready";
           if (msg.lesson) lessonTitle.textContent = msg.lesson;
+          if (vadOn) startVadMic();
         } else if (msg.type === "agent_caption") {
+          window.__speakAgentMetrics.lastAgentCaption = performance.now();
           appendDialogue("agent", msg.text, { gloss: msg.gloss, translation: msg.translation });
           currentBuffer = [];
         } else if (msg.type === "agent_done") {
-          if (currentBuffer) { playQueue.push(currentBuffer); currentBuffer = null; }
-          playWorker();
+          if (currentBuffer) {
+            if (ttsPlayer) ttsPlayer.pushChunks(currentBuffer);
+            else playQueue.push(currentBuffer);
+            currentBuffer = null;
+          }
+          if (!ttsPlayer) playWorker();
+        } else if (msg.type === "user_speech_start") {
+          // Server-side VAD detected speech — stop any agent playback locally.
+          window.__speakAgentMetrics.lastSpeechStart = performance.now();
+          if (ttsPlayer) ttsPlayer.stopAll();
+          currentBuffer = null;
+          statusEl.textContent = "listening…";
+        } else if (msg.type === "user_speech_end") {
+          statusEl.textContent = "scoring…";
         } else if (msg.type === "user_prompt") {
           appendDialogue("agent", "[" + msg.prompt + "]", { gloss: msg.gloss, translation: msg.translation });
           if (msg.ideal) appendDialogue("agent", "  → " + msg.ideal, {});
-          pttBtn.disabled = false;
-          statusEl.textContent = "your turn — hold SPACE";
+          if (vadOn) {
+            statusEl.textContent = "your turn — just speak";
+          } else {
+            pttBtn.disabled = false;
+            statusEl.textContent = "your turn — hold SPACE";
+          }
         } else if (msg.type === "user_transcript") {
           appendDialogue("user", msg.text);
         } else if (msg.type === "score") {
@@ -139,7 +173,30 @@
     };
 
     ws.onerror = (e) => log("ws error " + e);
-    ws.onclose = () => { statusEl.textContent = "disconnected"; pttBtn.disabled = true; };
+    ws.onclose = () => {
+      statusEl.textContent = "disconnected";
+      pttBtn.disabled = true;
+      if (micClient) { micClient.stop(); micClient = null; }
+    };
+
+    async function startVadMic() {
+      if (micClient) return;
+      try {
+        micClient = new MicClient({
+          ws,
+          onLocalSpeechStart: () => {
+            window.__speakAgentMetrics.lastInterruptSent = performance.now();
+            try { ws.send(JSON.stringify({ type: "interrupt" })); } catch (_) {}
+            if (ttsPlayer) ttsPlayer.stopAll();
+          },
+        });
+        await micClient.start();
+        log("VAD mic started");
+      } catch (e) {
+        log("VAD mic failed: " + e);
+        micClient = null;
+      }
+    }
   }
 
   async function startRecording() {
