@@ -65,13 +65,38 @@ def _spawn_claude(item: Item, worktree: str):
 
 
 def _verify(worktree: str) -> bool:
-    """Run unit + eval suites inside the worktree."""
+    """Run unit + eval + e2e suites inside the worktree.
+
+    e2e is best-effort: if Playwright/chromium not installed in the
+    worktree's environment we skip rather than fail (so autopilot can
+    still iterate on backend-only changes).
+    """
     try:
         r1 = subprocess.run(["python", "-m", "pytest", "tests/unit", "-q"],
                             cwd=worktree, capture_output=True, text=True, timeout=600)
         r2 = subprocess.run(["python", "-m", "pytest", "tests/eval", "-q"],
                             cwd=worktree, capture_output=True, text=True, timeout=600)
-        return r1.returncode == 0 and r2.returncode == 0
+        unit_ok = r1.returncode == 0
+        eval_ok = r2.returncode == 0
+        _log.info("verify_unit_eval", unit_rc=r1.returncode, eval_rc=r2.returncode)
+        if not (unit_ok and eval_ok):
+            return False
+
+        # E2E is opt-in: check if tests/e2e exists AND playwright importable
+        e2e_dir = os.path.join(worktree, "tests", "e2e")
+        if not os.path.isdir(e2e_dir):
+            _log.info("verify_e2e_skipped", reason="no_e2e_dir")
+            return True
+        check = subprocess.run(["python", "-c", "import playwright"],
+                               cwd=worktree, capture_output=True, text=True, timeout=10)
+        if check.returncode != 0:
+            _log.info("verify_e2e_skipped", reason="playwright_missing")
+            return True
+        r3 = subprocess.run(["python", "-m", "pytest", "tests/e2e", "-q"],
+                            cwd=worktree, capture_output=True, text=True, timeout=900)
+        _log.info("verify_e2e", rc=r3.returncode,
+                  stdout_tail=(r3.stdout or "")[-400:])
+        return r3.returncode == 0
     except Exception as e:
         _log.error("verify_failed", error=str(e))
         return False
