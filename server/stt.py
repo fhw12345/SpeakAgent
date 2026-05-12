@@ -1,5 +1,6 @@
 """faster-whisper STT wrapper. Long-lived engine; one transcribe call per utterance."""
 import math
+import os
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 
@@ -20,9 +21,14 @@ class TranscriptionResult:
 
 
 class SttEngine:
-    def __init__(self, model_name: str = "small", device: str = "auto"):
-        _log.info("stt_loading_model", model=model_name, device=device)
-        self._model = WhisperModel(model_name, device=device, compute_type="auto")
+    def __init__(self, model_name: str = "small", device: str | None = None,
+                 compute_type: str | None = None):
+        device = device or os.environ.get("WHISPER_DEVICE", "cpu")
+        compute_type = compute_type or os.environ.get(
+            "WHISPER_COMPUTE_TYPE", "int8" if device == "cpu" else "auto"
+        )
+        _log.info("stt_loading_model", model=model_name, device=device, compute_type=compute_type)
+        self._model = WhisperModel(model_name, device=device, compute_type=compute_type)
         _log.info("stt_model_loaded")
 
     def transcribe(self, pcm_f32_16k: np.ndarray) -> TranscriptionResult:
