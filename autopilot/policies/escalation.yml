@@ -1,0 +1,20 @@
+patterns:
+  - name: schema_or_db_migration
+    file_globs: ["**/schema.sql", "**/migrations/**", "**/alembic/**"]
+    diff_keywords: ["alter table", "add column", "drop column", "create table"]
+  - name: new_top_level_dependency
+    file_globs: ["requirements.txt", "pyproject.toml"]
+    diff_keywords: ["+ ", "added: "]
+  - name: file_deletion
+    file_globs: []
+    diff_keywords: ["deleted:", "delete:", "rm "]
+  - name: autopilot_self_modification
+    file_globs: ["autopilot/**"]
+    diff_keywords: []
+  - name: llm_retry_policy_change
+    file_globs: ["server/llm.py"]
+    diff_keywords: ["retry", "backoff", "fallback"]
+  - name: license_change
+    file_globs: ["LICENSE", "LICENSE.*"]
+    diff_keywords: []
+consecutive_failure_threshold: 3
