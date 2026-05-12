@@ -12,21 +12,68 @@ Flow:
 
 The PRD is the source of truth the implementer subagent works from.
 Each backlog item references its parent PRD path so the implementer can read it.
+
+NOTE: This module talks to the Claude gateway directly (urllib) instead of
+going through server.llm.call_with_fallback because the PRD generator needs
+a much larger max_tokens than the conversational scoring path. Keeping the
+two callers separate also matches spec §9.2's "do not modify server/llm.py"
+escalation rule for autopilot work.
 """
 import datetime
 import json
 import os
 import re
 import sys
+import time
+import urllib.request
+import urllib.error
 import uuid
 from typing import List
 
 from autopilot.backlog import Backlog, Item
-from server.llm import call_with_fallback
 from server.logging_setup import configure_logging, get_logger
 
 configure_logging()
 _log = get_logger("intake")
+
+
+_GATEWAY = os.environ.get(
+    "CLAUDE_API_ENDPOINT",
+    "http://localhost:23333/api/anthropic/v1/messages",
+)
+_MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-4.7-1m-internal")
+
+
+def _llm_call(prompt: str, system: str, max_tokens: int = 4096) -> str:
+    """Direct Claude gateway call with configurable max_tokens; 3-retry."""
+    body = json.dumps({
+        "model": _MODEL,
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [{"role": "user", "content": prompt}],
+    }).encode("utf-8")
+    last_err: Exception | None = None
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(
+                _GATEWAY, data=body,
+                headers={"Content-Type": "application/json",
+                         "anthropic-version": "2023-06-01"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            for block in data.get("content", []):
+                if block.get("type") == "text":
+                    return block["text"].strip()
+            return ""
+        except Exception as e:
+            last_err = e
+            wait = (attempt + 1) * 10
+            _log.warning("llm_retry", attempt=attempt + 1, error=str(e)[:200], wait_s=wait)
+            if attempt < 2:
+                time.sleep(wait)
+    raise RuntimeError(f"llm_call failed after 3 attempts: {last_err}")
 
 
 _PRD_SYSTEM = (
@@ -73,7 +120,9 @@ def generate_prd(request: str, prd_path: str) -> str:
         f"Code lives in server/, web/, curriculum/, autopilot/, tests/.\n\n"
         f"Write the PRD now."
     )
-    md = call_with_fallback(prompt, system=_PRD_SYSTEM)
+    md = _llm_call(prompt, system=_PRD_SYSTEM, max_tokens=4096)
+    if not md or len(md) < 200:
+        raise RuntimeError(f"LLM returned suspiciously short PRD ({len(md)} chars): {md[:100]!r}")
     os.makedirs(os.path.dirname(prd_path), exist_ok=True)
     with open(prd_path, "w", encoding="utf-8") as f:
         f.write(f"# PRD: {request}\n\n")
@@ -90,7 +139,7 @@ def generate_backlog_items(prd_text: str, prd_path: str) -> List[Item]:
         f"Here is the PRD (path: {prd_path}):\n\n```\n{prd_text}\n```\n\n"
         f"Break it into backlog items now. Reply ONLY with the JSON list."
     )
-    raw = call_with_fallback(prompt, system=_BACKLOG_SYSTEM)
+    raw = _llm_call(prompt, system=_BACKLOG_SYSTEM, max_tokens=2048)
     raw = raw.strip()
     if raw.startswith("```"):
         raw = re.sub(r"^```(?:json)?\s*", "", raw)
