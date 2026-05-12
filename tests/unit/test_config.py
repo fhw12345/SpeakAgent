@@ -88,3 +88,21 @@ def test_dotenv_missing_file_is_silent(tmp_path, monkeypatch):
         _load_dotenv()  # should not raise
     finally:
         monkeypatch.setattr(cfgmod, "__file__", orig)
+
+
+def test_vad_default_off(monkeypatch):
+    monkeypatch.delenv("SPEAKAGENT_VAD", raising=False)
+    cfg = load_config()
+    assert cfg.vad == "off"
+
+
+def test_vad_env_on(monkeypatch):
+    for val in ("on", "true", "1", "yes", "ON", "True", "YES"):
+        monkeypatch.setenv("SPEAKAGENT_VAD", val)
+        assert load_config().vad == "on", f"expected 'on' for {val!r}"
+
+
+def test_vad_env_other_values_off(monkeypatch):
+    for val in ("anythingelse", "no", "0", "false", "off", ""):
+        monkeypatch.setenv("SPEAKAGENT_VAD", val)
+        assert load_config().vad == "off", f"expected 'off' for {val!r}"

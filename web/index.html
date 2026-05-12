@@ -37,6 +37,15 @@
     </section>
   </main>
   <script src="/static/js/list_view.js"></script>
+  <script>
+    // Bootstrap: fetch /config and set window.SPEAKAGENT_VAD before session.js uses it.
+    window.__speakAgentReady = fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
+      window.SPEAKAGENT_VAD = (c && c.vad) || 'off';
+    }).catch(function () { window.SPEAKAGENT_VAD = 'off'; });
+  </script>
+  <script src="/static/audio/tts-player.js"></script>
+  <script src="/static/audio/mic-client.js"></script>
+  <script src="/static/js/session.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
 </html>

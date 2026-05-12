@@ -1,4 +1,6 @@
-// web/js/app.js — view switching + dialogue logic. Push-to-talk on spacebar.
+// web/js/app.js — view switching + dialogue rendering. Session/audio/WS logic
+// lives in session.js; this file owns DOM, list/dialogue toggling, and wires
+// the start button to a Session instance.
 (function () {
   const listView = document.getElementById("list-view");
   const dialogueView = document.getElementById("dialogue-view");
@@ -12,9 +14,6 @@
   const scorecardBody = document.getElementById("scorecard-body");
   const devLog = document.getElementById("dev-log");
 
-  let ws = null;
-  let audioCtx = null;
-  let recording = false;
   let currentLesson = null; // { id, order }
 
   function log(msg) {
@@ -28,7 +27,6 @@
   function showList(nextOrder) {
     dialogueView.hidden = true;
     listView.hidden = false;
-    // Reset dialogue area for a clean next session.
     dialogue.innerHTML = "";
     if (scorecard) scorecard.hidden = true;
     if (scorecardBody) scorecardBody.textContent = "";
@@ -69,113 +67,6 @@
     dialogue.scrollTop = dialogue.scrollHeight;
   }
 
-  async function startSession() {
-    startBtn.disabled = true;
-    statusEl.textContent = "connecting";
-    ws = new WebSocket(`ws://${location.host}/ws/session`);
-    ws.binaryType = "arraybuffer";
-
-    let currentBuffer = null;
-    const playQueue = [];
-    let workerRunning = false;
-
-    async function playWorker() {
-      if (workerRunning) return;
-      workerRunning = true;
-      try {
-        while (playQueue.length) {
-          const chunks = playQueue.shift();
-          if (!chunks.length) continue;
-          const blob = new Blob(chunks, { type: "audio/mpeg" });
-          const url = URL.createObjectURL(blob);
-          const a = new Audio(url);
-          await new Promise((resolve) => {
-            a.onended = resolve;
-            a.onerror = resolve;
-            a.play().catch((e) => { log("audio play err " + e); resolve(); });
-          });
-          URL.revokeObjectURL(url);
-        }
-      } finally {
-        workerRunning = false;
-      }
-    }
-
-    ws.onmessage = (ev) => {
-      if (typeof ev.data === "string") {
-        const msg = JSON.parse(ev.data);
-        log(`<- ${msg.type}`);
-        if (msg.type === "session_start") {
-          statusEl.textContent = "ready";
-          if (msg.lesson) lessonTitle.textContent = msg.lesson;
-        } else if (msg.type === "agent_caption") {
-          appendDialogue("agent", msg.text, { gloss: msg.gloss, translation: msg.translation });
-          currentBuffer = [];
-        } else if (msg.type === "agent_done") {
-          if (currentBuffer) { playQueue.push(currentBuffer); currentBuffer = null; }
-          playWorker();
-        } else if (msg.type === "user_prompt") {
-          appendDialogue("agent", "[" + msg.prompt + "]", { gloss: msg.gloss, translation: msg.translation });
-          if (msg.ideal) appendDialogue("agent", "  → " + msg.ideal, {});
-          pttBtn.disabled = false;
-          statusEl.textContent = "your turn — hold SPACE";
-        } else if (msg.type === "user_transcript") {
-          appendDialogue("user", msg.text);
-        } else if (msg.type === "score") {
-          scorecard.hidden = false;
-          scorecardBody.textContent = JSON.stringify(msg.score, null, 2);
-        } else if (msg.type === "session_end") {
-          statusEl.textContent = "session complete";
-          scorecard.hidden = false;
-          scorecardBody.textContent = JSON.stringify(msg.scores, null, 2);
-          const finished = currentLesson;
-          window.dispatchEvent(new CustomEvent("session_end", {
-            detail: { lessonId: finished ? finished.id : null, order: finished ? finished.order : null },
-          }));
-        }
-      } else {
-        if (currentBuffer) currentBuffer.push(ev.data);
-      }
-    };
-
-    ws.onerror = (e) => log("ws error " + e);
-    ws.onclose = () => { statusEl.textContent = "disconnected"; pttBtn.disabled = true; };
-  }
-
-  async function startRecording() {
-    if (recording) return;
-    recording = true;
-    statusEl.textContent = "recording…";
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
-    audioCtx = new AudioContext({ sampleRate: 16000 });
-    const src = audioCtx.createMediaStreamSource(stream);
-    const proc = audioCtx.createScriptProcessor(4096, 1, 1);
-    proc.onaudioprocess = (ev) => {
-      const f32 = ev.inputBuffer.getChannelData(0);
-      const i16 = new Int16Array(f32.length);
-      for (let i = 0; i < f32.length; i++) i16[i] = Math.max(-1, Math.min(1, f32[i])) * 32767;
-      if (ws && ws.readyState === 1) ws.send(i16.buffer);
-    };
-    src.connect(proc);
-    const sink = audioCtx.createGain();
-    sink.gain.value = 0;
-    proc.connect(sink);
-    sink.connect(audioCtx.destination);
-    window._sttStream = stream;
-    window._sttProc = proc;
-  }
-
-  async function stopRecording() {
-    if (!recording) return;
-    recording = false;
-    statusEl.textContent = "scoring…";
-    if (window._sttProc) window._sttProc.disconnect();
-    if (window._sttStream) window._sttStream.getTracks().forEach((t) => t.stop());
-    if (audioCtx) await audioCtx.close();
-    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: "user_audio_end" }));
-    pttBtn.disabled = true;
-  }
-
   // Event wiring.
   window.addEventListener("lesson:open", (e) => {
     currentLesson = { id: e.detail.id, order: e.detail.order };
@@ -183,7 +74,10 @@
   });
 
   window.addEventListener("session_end", (e) => {
-    if (ws && ws.readyState === 1) try { ws.close(); } catch (_) {}
+    if (window.session) {
+      try { window.session.stop(); } catch (_) {}
+      window.session = null;
+    }
     const finishedOrder = e.detail && e.detail.order;
     let nextOrder = null;
     if (finishedOrder != null) {
@@ -193,20 +87,40 @@
     showList(nextOrder);
   });
 
-  if (backBtn) backBtn.addEventListener("click", () => showList());
+  if (backBtn) backBtn.addEventListener("click", () => {
+    if (window.session) {
+      try { window.session.stop(); } catch (_) {}
+      window.session = null;
+    }
+    showList();
+  });
 
-  document.addEventListener("keydown", (e) => {
-    if (e.code === "Space" && pttBtn && !pttBtn.disabled && !recording) { e.preventDefault(); startRecording(); }
-  });
-  document.addEventListener("keyup", (e) => {
-    if (e.code === "Space" && recording) { e.preventDefault(); stopRecording(); }
-  });
-  if (pttBtn) {
-    pttBtn.addEventListener("mousedown", startRecording);
-    pttBtn.addEventListener("mouseup", stopRecording);
+  if (startBtn) {
+    startBtn.addEventListener("click", async () => {
+      if (window.__speakAgentReady) {
+        try { await window.__speakAgentReady; } catch (_) {}
+      }
+      const ui = {
+        appendDialogue,
+        log,
+        setStatus: (s) => { if (statusEl) statusEl.textContent = s; },
+        startBtn,
+        pttBtn,
+        lessonTitle,
+        scorecard,
+        scorecardBody,
+        onSessionEnd: () => {
+          const finished = currentLesson;
+          window.dispatchEvent(new CustomEvent("session_end", {
+            detail: { lessonId: finished ? finished.id : null, order: finished ? finished.order : null },
+          }));
+        },
+      };
+      window.session = new window.Session(ui);
+      await window.session.start();
+    });
   }
-  if (startBtn) startBtn.addEventListener("click", startSession);
 
   // Expose for tests.
-  window.app = { showList, showDialogue };
+  window.app = { showList, showDialogue, appendDialogue };
 })();
