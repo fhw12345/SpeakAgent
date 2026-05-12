@@ -36,7 +36,22 @@
       </details>
     </section>
   </main>
-  <script src="/static/js/list_view.js"></script>
-  <script src="/static/js/app.js"></script>
+  <script>
+    window.SPEAKAGENT_VAD = "off";
+    document.addEventListener("DOMContentLoaded", function () {
+      var s = document.createElement("script");
+      s.src = "/static/js/list_view.js";
+      s.onload = function () {
+        var a = document.createElement("script");
+        a.src = "/static/js/app.js";
+        document.body.appendChild(a);
+      };
+      fetch("/config")
+        .then(function (r) { return r.json(); })
+        .then(function (cfg) { window.SPEAKAGENT_VAD = cfg && cfg.vad ? cfg.vad : "off"; })
+        .catch(function () { /* keep default "off" */ })
+        .finally(function () { document.body.appendChild(s); });
+    });
+  </script>
 </body>
 </html>

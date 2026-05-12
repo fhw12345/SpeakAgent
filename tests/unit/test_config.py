@@ -36,6 +36,18 @@ def test_week7_all_voices_eligible():
     assert len(weights) >= 4
 
 
+def test_vad_default_off(monkeypatch):
+    monkeypatch.delenv("SPEAKAGENT_VAD", raising=False)
+    cfg = load_config()
+    assert cfg.vad == "off"
+
+
+def test_vad_env_override(monkeypatch):
+    monkeypatch.setenv("SPEAKAGENT_VAD", "on")
+    cfg = load_config()
+    assert cfg.vad == "on"
+
+
 def test_dotenv_loads_keys_when_unset(monkeypatch, tmp_path):
     """`.env` populates env when var is unset."""
     env_file = tmp_path / ".env"

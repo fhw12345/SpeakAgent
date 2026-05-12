@@ -59,6 +59,7 @@ class Config:
     voices: List[str] = field(default_factory=lambda: list(VOICES_ALL))
     curriculum_dir: str = "curriculum"
     data_dir: str = "data"
+    vad: str = "off"
 
 
 def load_config() -> Config:
@@ -75,6 +76,7 @@ def load_config() -> Config:
         azure_api_key=os.environ.get("AZURE_OPENAI_API_KEY", ""),
         azure_model=os.environ.get("AZURE_OPENAI_MODEL", "gpt-5.4-mini"),
         whisper_model=os.environ.get("WHISPER_MODEL", "small"),
+        vad=os.environ.get("SPEAKAGENT_VAD", "off"),
     )
 
 
