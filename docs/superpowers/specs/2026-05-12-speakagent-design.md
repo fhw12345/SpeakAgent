@@ -31,7 +31,7 @@ Realistic outcomes after 8 weeks (~30–40 hours of training):
 
 The system is acceptable when **all** of the following hold:
 
-1. **End-to-end loop works**: user opens `localhost:8000`, picks today's lesson, speaks into mic, sees live captions, hears TTS reply, gets a scorecard at the end. Round-trip latency ≤ 3s for short utterances on user's machine.
+1. **End-to-end loop works**: user opens `localhost:8765`, picks today's lesson, speaks into mic, sees live captions, hears TTS reply, gets a scorecard at the end. Round-trip latency ≤ 3s for short utterances on user's machine.
 2. **8-week curriculum is fully populated** with at least one runnable lesson per day (56 lessons), each driven by a YAML/JSON lesson plan that the coach can execute without code changes.
 3. **Personal-project integration**: at least 5 of the user's own repos under `D:/repo/` (FundAgent, Nexis, NBAVedio, vs-debugger-mcp, Agent Maestro) appear as practice material with project-specific interview questions.
 4. **Autopilot runs continuously** with token budget enforcement, never touches `main` directly, escalates correctly on policy violations, and has produced ≥ 1 self-generated improvement merged via human review during a 1-week burn-in.
@@ -189,7 +189,7 @@ The user opted into **continuous (24/7) autopilot** via repo-local `CLAUDE.md`. 
 
 ### 9.2 Safety Guardrails (HARD constraints)
 
-- **Budget**: `autopilot/budget.json` declares daily cap (default $2/day equivalent in token spend; for `localhost:23333` route the cap is in request count, default 500/day). Exceeding → autopilot enters `dry-run` mode (Discovery and logging only, no spawn) for the rest of the day.
+- **Rate limit (anti-runaway only, NOT budget)**: `autopilot/policies/rate_limit.yml` caps LLM call rate (default 60 req/min) to prevent a stuck loop from hammering the gateway. Token cost is a non-concern. If the rate cap trips, autopilot pauses for 60s and logs a warning; if it trips 3× in an hour, autopilot escalates ("possible infinite loop").
 - **Branch isolation**: `main` is never touched. Even merges happen via human-issued PR.
 - **Single-task concurrency**: one PRD in flight at a time on the main code base. Discovery may run in parallel.
 - **Escalation triggers** (always file to `autopilot/inbox.md`, never auto-execute):
@@ -339,7 +339,7 @@ speakAgent/
 │   ├── loop.py
 │   ├── backlog.md
 │   ├── inbox.md
-│   ├── budget.json
+│   ├── policies/rate_limit.yml
 │   ├── PAUSE                     # absent by default; touch to halt
 │   ├── triggers/
 │   │   ├── from_test_fails.py
