@@ -15,6 +15,7 @@ from server.routes.lessons import router as lessons_router
 from server.session import new_session
 from server.stt import SttEngine
 from server.tts import pick_voice, synthesize_stream
+from server.coach import stream_agent_turn
 
 configure_logging()
 _log = get_logger("server")
@@ -32,6 +33,15 @@ def _get_stt() -> SttEngine:
     if _stt is None:
         _stt = SttEngine(model_name=_cfg.whisper_model)
     return _stt
+
+
+def _streaming_enabled() -> bool:
+    """Phase 3: SPEAKAGENT_STREAMING=on enables sentence-level streaming.
+
+    Default off so that without the env flag the WS path is byte-identical
+    to Phase 2. Tests opt in by setting the env var before connecting.
+    """
+    return os.environ.get("SPEAKAGENT_STREAMING", "off").lower() in ("on", "1", "true", "yes")
 
 
 @app.get("/api/today")
@@ -61,6 +71,17 @@ async def ws_session(ws: WebSocket):
 
             if turn["speaker"] == "agent":
                 voice = pick_voice(week=plan.week, turn_index=sess.coach._idx)
+                if _streaming_enabled():
+                    full_text = await stream_agent_turn(
+                        ws,
+                        messages=[{"role": "user", "content": turn["say"]}],
+                        voice=voice,
+                    )
+                    _progress.append_turn(
+                        sess.id, plan.id,
+                        {"role": "agent", "text": full_text or turn["say"]},
+                    )
+                    continue
                 await ws.send_json({
                     "type": "agent_caption",
                     "text": turn["say"],

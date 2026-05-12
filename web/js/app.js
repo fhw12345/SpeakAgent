@@ -3,6 +3,7 @@
   const listView = document.getElementById("list-view");
   const dialogueView = document.getElementById("dialogue-view");
   const dialogue = document.getElementById("dialogue");
+  const agentCaption = document.getElementById("agent-caption");
   const startBtn = document.getElementById("start-btn");
   const pttBtn = document.getElementById("ptt-btn");
   const backBtn = document.getElementById("back-btn");
@@ -111,10 +112,30 @@
         } else if (msg.type === "agent_caption") {
           appendDialogue("agent", msg.text, { gloss: msg.gloss, translation: msg.translation });
           currentBuffer = [];
+        } else if (msg.type === "agent_partial_text") {
+          if (agentCaption) {
+            if (msg.index === 0) agentCaption.textContent = "";
+            agentCaption.textContent += (agentCaption.textContent ? " " : "") + msg.text;
+          }
+          if (!currentBuffer) currentBuffer = [];
+        } else if (msg.type === "agent_audio") {
+          if (typeof msg.b64 === "string" && msg.b64) {
+            const bin = atob(msg.b64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            if (!currentBuffer) currentBuffer = [];
+            currentBuffer.push(bytes.buffer);
+          }
+        } else if (msg.type === "agent_error") {
+          log(`agent_error: ${msg.detail}`);
         } else if (msg.type === "agent_done") {
+          if (msg.full_text && agentCaption) {
+            appendDialogue("agent", msg.full_text, {});
+          }
           if (currentBuffer) { playQueue.push(currentBuffer); currentBuffer = null; }
           playWorker();
         } else if (msg.type === "user_prompt") {
+          if (agentCaption) agentCaption.textContent = "";
           appendDialogue("agent", "[" + msg.prompt + "]", { gloss: msg.gloss, translation: msg.translation });
           if (msg.ideal) appendDialogue("agent", "  → " + msg.ideal, {});
           pttBtn.disabled = false;
@@ -209,4 +230,12 @@
 
   // Expose for tests.
   window.app = { showList, showDialogue };
+
+  // Test hook: simulate an incoming `agent_partial_text` to drive the caption
+  // element from e2e tests without needing a real LLM stream upstream.
+  window.app.handlePartialText = function (text, index) {
+    if (!agentCaption) return;
+    if (index === 0) agentCaption.textContent = "";
+    agentCaption.textContent += (agentCaption.textContent ? " " : "") + text;
+  };
 })();
