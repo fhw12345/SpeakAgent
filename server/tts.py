@@ -2,6 +2,7 @@
 import asyncio
 import os
 from typing import AsyncIterator
+from xml.sax.saxutils import escape as _xml_escape
 import httpx
 import edge_tts
 
@@ -31,9 +32,10 @@ async def _azure_stream(text: str, voice: str) -> AsyncIterator[bytes]:
     if not key or not region:
         raise RuntimeError("azure_speech_not_configured")
     lang = "-".join(voice.split("-")[:2])
+    safe_text = _xml_escape(text)
     ssml = (
         f"<speak version='1.0' xml:lang='{lang}'>"
-        f"<voice name='{voice}'>{text}</voice></speak>"
+        f"<voice name='{voice}'>{safe_text}</voice></speak>"
     )
     url = f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1"
     headers = {

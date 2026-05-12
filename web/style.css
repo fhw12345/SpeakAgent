@@ -1,6 +1,8 @@
 body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 1rem; background: #fafafa; }
 header { display: flex; justify-content: space-between; align-items: baseline; }
 #dialogue { min-height: 200px; border: 1px solid #ddd; padding: 1rem; background: white; border-radius: 8px; }
+#agent-caption { min-height: 1.6em; padding: .5rem .8rem; margin: .25rem 0 .5rem; background: #eef6ff; border-left: 3px solid #357; border-radius: 4px; color: #024; font-size: 1rem; line-height: 1.4; }
+#agent-caption:empty { display: none; }
 #dialogue .agent { color: #035; margin: .5rem 0; }
 #dialogue .user  { color: #303; margin: .5rem 0; font-style: italic; }
 #dialogue .translation { color: #888; font-size: .85rem; margin: -.3rem 0 .2rem 1rem; }

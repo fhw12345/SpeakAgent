@@ -9,18 +9,29 @@ from fastapi.staticfiles import StaticFiles
 
 from server.config import load_config
 from server.lesson import load_lesson
+from server.llm_stream import stream_claude
 from server.logging_setup import configure_logging, get_logger
 from server.progress import ProgressStore
 from server.routes.lessons import router as lessons_router
+from server.sentence_splitter import SentenceAccumulator
 from server.session import new_session
 from server.stt import SttEngine
 from server.tts import pick_voice, synthesize_stream
+
+
+def _streaming_enabled() -> bool:
+    return os.environ.get("SPEAKAGENT_STREAMING", "on").lower() in ("on", "1", "true", "yes")
 
 configure_logging()
 _log = get_logger("server")
 _cfg = load_config()
 _data_dir = os.environ.get("SPEAKAGENT_DATA_DIR", _cfg.data_dir)
 _progress = ProgressStore(data_dir=_data_dir)
+
+if os.environ.get("SPEAKAGENT_FAKE_LLM"):
+    _log.warning("fake_llm_enabled", note="SPEAKAGENT_FAKE_LLM is set; LLM responses are canned. Do not use in production.")
+if os.environ.get("SPEAKAGENT_FAKE_TTS"):
+    _log.warning("fake_tts_enabled", note="SPEAKAGENT_FAKE_TTS is set; audio output is a placeholder. Do not use in production.")
 
 app = FastAPI(title="speakAgent")
 app.include_router(lessons_router)
@@ -61,17 +72,21 @@ async def ws_session(ws: WebSocket):
 
             if turn["speaker"] == "agent":
                 voice = pick_voice(week=plan.week, turn_index=sess.coach._idx)
-                await ws.send_json({
-                    "type": "agent_caption",
-                    "text": turn["say"],
-                    "voice": voice,
-                    "gloss": turn.get("gloss", []),
-                    "translation": turn.get("translation", ""),
-                })
-                async for chunk in synthesize_stream(turn["say"], voice=voice):
-                    await ws.send_bytes(chunk)
-                await ws.send_json({"type": "agent_done"})
-                _progress.append_turn(sess.id, plan.id, {"role": "agent", "text": turn["say"]})
+                if _streaming_enabled():
+                    full_text = await _stream_agent_turn(ws, turn, voice)
+                else:
+                    await ws.send_json({
+                        "type": "agent_caption",
+                        "text": turn["say"],
+                        "voice": voice,
+                        "gloss": turn.get("gloss", []),
+                        "translation": turn.get("translation", ""),
+                    })
+                    async for chunk in synthesize_stream(turn["say"], voice=voice):
+                        await ws.send_bytes(chunk)
+                    await ws.send_json({"type": "agent_done"})
+                    full_text = turn["say"]
+                _progress.append_turn(sess.id, plan.id, {"role": "agent", "text": full_text})
             else:
                 await ws.send_json({
                     "type": "user_prompt",
@@ -90,6 +105,70 @@ async def ws_session(ws: WebSocket):
                 })
     except (WebSocketDisconnect, RuntimeError):
         _log.info("ws_disconnect", session_id=sess.id)
+
+
+async def _stream_agent_turn(ws: WebSocket, turn: dict, voice: str) -> str:
+    """Streaming agent path: Claude SSE -> sentence accumulator -> Azure TTS per sentence.
+
+    Emits agent_partial_text per completed sentence interleaved with agent_audio
+    bytes for that sentence. Always ends with agent_done {full_text}.
+    """
+    fake_tts = os.environ.get("SPEAKAGENT_FAKE_TTS")
+    seed = turn["say"]
+    messages = [{
+        "role": "user",
+        "content": (
+            f"Say the following coach line naturally to a learner, in 1-3 short sentences. "
+            f"Do not add commentary, do not greet again, just speak the line:\n\n{seed}"
+        ),
+    }]
+    # Send scaffolding (gloss/translation) up front so the UI can show study aids
+    # while the live caption fills in sentence by sentence.
+    await ws.send_json({
+        "type": "agent_caption",
+        "text": "",
+        "voice": voice,
+        "gloss": turn.get("gloss", []),
+        "translation": turn.get("translation", ""),
+        "streaming": True,
+    })
+
+    acc = SentenceAccumulator()
+    sentences: list[str] = []
+
+    async def _emit_sentence(text: str) -> None:
+        idx = len(sentences)
+        sentences.append(text)
+        await ws.send_json({"type": "agent_partial_text", "text": text, "index": idx})
+        if fake_tts:
+            await ws.send_bytes(b"FAKE_AUDIO")
+            return
+        try:
+            async for chunk in synthesize_stream(text, voice=voice):
+                await ws.send_bytes(chunk)
+        except Exception as e:
+            _log.warning("tts_sentence_failed", index=idx, error=str(e)[:200])
+            await ws.send_json({"type": "agent_error", "detail": f"tts: {e}", "index": idx})
+
+    try:
+        async for delta in stream_claude(messages):
+            for s in acc.push(delta):
+                await _emit_sentence(s)
+    except Exception as e:
+        _log.warning("llm_stream_failed", error=str(e)[:200])
+        await ws.send_json({"type": "agent_error", "detail": f"llm: {e}", "index": None})
+    finally:
+        for s in acc.flush():
+            await _emit_sentence(s)
+
+    # Fallback: if streaming yielded nothing, fall back to the static seed line
+    # so the user is not left with silence.
+    if not sentences:
+        await _emit_sentence(seed)
+
+    full_text = " ".join(sentences).strip()
+    await ws.send_json({"type": "agent_done", "full_text": full_text})
+    return full_text
 
 
 async def _receive_user_audio(ws: WebSocket, sess) -> np.ndarray:

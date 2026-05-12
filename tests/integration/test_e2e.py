@@ -23,7 +23,10 @@ def _fake_transcribe(self, pcm):
     )
 
 
-def test_full_session_round_trip():
+def test_full_session_round_trip(monkeypatch):
+    # Force the deterministic Phase 2 path so this test does not depend on the
+    # streaming LLM gateway being reachable.
+    monkeypatch.setenv("SPEAKAGENT_STREAMING", "off")
     fake_judge = '{"content_score": 5, "rewrite": "Hello and welcome to the interview.", "issues": []}'
     with patch("server.main.synthesize_stream", _empty_stream), \
          patch("server.stt.SttEngine.transcribe", _fake_transcribe), \

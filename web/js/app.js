@@ -11,6 +11,7 @@
   const scorecard = document.getElementById("scorecard");
   const scorecardBody = document.getElementById("scorecard-body");
   const devLog = document.getElementById("dev-log");
+  const agentCaption = document.getElementById("agent-caption");
 
   let ws = null;
   let audioCtx = null;
@@ -30,6 +31,7 @@
     listView.hidden = false;
     // Reset dialogue area for a clean next session.
     dialogue.innerHTML = "";
+    if (agentCaption) agentCaption.textContent = "";
     if (scorecard) scorecard.hidden = true;
     if (scorecardBody) scorecardBody.textContent = "";
     if (statusEl) statusEl.textContent = "idle";
@@ -109,12 +111,36 @@
           statusEl.textContent = "ready";
           if (msg.lesson) lessonTitle.textContent = msg.lesson;
         } else if (msg.type === "agent_caption") {
-          appendDialogue("agent", msg.text, { gloss: msg.gloss, translation: msg.translation });
+          if (msg.text) appendDialogue("agent", msg.text, { gloss: msg.gloss, translation: msg.translation });
+          else if (msg.gloss || msg.translation) appendDialogue("agent", "", { gloss: msg.gloss, translation: msg.translation });
+          if (agentCaption) agentCaption.textContent = "";
           currentBuffer = [];
+        } else if (msg.type === "agent_partial_text") {
+          if (agentCaption) {
+            const prefix = agentCaption.textContent ? agentCaption.textContent + " " : "";
+            agentCaption.textContent = prefix + msg.text;
+          }
+          // Flush any audio collected so far for the previous sentence so playback
+          // can start as soon as the first sentence's bytes arrive.
+          if (currentBuffer && currentBuffer.length) {
+            playQueue.push(currentBuffer);
+            currentBuffer = [];
+            playWorker();
+          }
+        } else if (msg.type === "agent_error") {
+          log("agent_error: " + msg.detail);
         } else if (msg.type === "agent_done") {
           if (currentBuffer) { playQueue.push(currentBuffer); currentBuffer = null; }
+          if (msg.full_text) {
+            // Streaming path: move the live caption into the permanent
+            // dialogue record and clear the transient caption div so we
+            // don't show the same text twice.
+            appendDialogue("agent", msg.full_text, {});
+            if (agentCaption) agentCaption.textContent = "";
+          }
           playWorker();
         } else if (msg.type === "user_prompt") {
+          if (agentCaption) agentCaption.textContent = "";
           appendDialogue("agent", "[" + msg.prompt + "]", { gloss: msg.gloss, translation: msg.translation });
           if (msg.ideal) appendDialogue("agent", "  → " + msg.ideal, {});
           pttBtn.disabled = false;
