@@ -34,10 +34,34 @@ def _collect_all_triggers() -> List[Item]:
     return items
 
 
+def _claude_executable() -> str:
+    """Locate the claude CLI binary. On Windows this is usually claude.cmd
+    in npm's global bin; subprocess won't find .cmd without shell=True or
+    an explicit name."""
+    import shutil
+    found = shutil.which("claude") or shutil.which("claude.cmd") or shutil.which("claude.exe")
+    if not found:
+        raise RuntimeError("claude CLI not found on PATH")
+    return found
+
+
 def _spawn_claude(item: Item, worktree: str):
-    """Run `claude -p` headless inside the worktree. Returns the CompletedProcess."""
-    cmd = ["claude", "-p", item.prompt, "--cwd", worktree]
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=60 * 30)
+    """Run `claude -p` headless inside the worktree. Returns the CompletedProcess.
+
+    All subagents use opus and bypass permission prompts (autopilot is unattended).
+    """
+    exe = _claude_executable()
+    cmd = [
+        exe, "-p",
+        "--model", "opus",
+        "--permission-mode", "bypassPermissions",
+        item.prompt,
+    ]
+    _log.info("spawn_claude_start", slug=item.slug, worktree=worktree, exe=exe)
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60 * 30, cwd=worktree)
+    _log.info("spawn_claude_done", slug=item.slug, rc=proc.returncode,
+              stdout_chars=len(proc.stdout or ""), stderr_chars=len(proc.stderr or ""))
+    return proc
 
 
 def _verify(worktree: str) -> bool:
@@ -54,22 +78,47 @@ def _verify(worktree: str) -> bool:
 
 
 def _commit_to_branch(worktree: str, slug: str) -> str:
+    """Add + commit any changes in the worktree. Branch is already created
+    by _make_worktree, so we just need to stage and commit."""
     today = datetime.date.today().isoformat()
     branch = f"autopilot/{today}-{slug}"
-    subprocess.run(["git", "-C", worktree, "checkout", "-b", branch], check=False)
-    subprocess.run(["git", "-C", worktree, "add", "-A"], check=False)
-    subprocess.run(
+    subprocess.run(["git", "-C", worktree, "add", "-A"],
+                   capture_output=True, text=True)
+    proc = subprocess.run(
         ["git", "-C", worktree, "commit", "-m", f"[auto] {slug}"],
-        check=False,
+        capture_output=True, text=True,
     )
+    _log.info("commit_to_branch", branch=branch, rc=proc.returncode,
+              stdout=proc.stdout[:200], stderr=proc.stderr[:200])
     return branch
 
 
+def _repo_root() -> str:
+    """Find the main repo root (the .git dir, not a worktree's .git file)."""
+    proc = subprocess.run(["git", "rev-parse", "--git-common-dir"],
+                          capture_output=True, text=True, check=True)
+    common_dir = proc.stdout.strip()
+    return os.path.dirname(os.path.abspath(common_dir))
+
+
 def _make_worktree(slug: str) -> str:
+    """Create a fresh git worktree under the MAIN repo's .claude/worktrees/.
+
+    Avoids nesting (we may already be inside a worktree). Branch named
+    autopilot/<date>-<slug> so commits land on the policy-mandated prefix
+    automatically.
+    """
     today = datetime.date.today().isoformat()
-    path = os.path.join(".claude", "worktrees", f"autopilot-{today}-{slug}")
+    repo = _repo_root()
+    path = os.path.join(repo, ".claude", "worktrees", f"autopilot-{today}-{slug}")
+    branch = f"autopilot/{today}-{slug}"
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    subprocess.run(["git", "worktree", "add", "-b", f"wt-{today}-{slug}", path], check=False)
+    proc = subprocess.run(
+        ["git", "-C", repo, "worktree", "add", "-b", branch, path],
+        capture_output=True, text=True,
+    )
+    _log.info("make_worktree", path=path, branch=branch, rc=proc.returncode,
+              stderr=proc.stderr[:200] if proc.stderr else "")
     return path
 
 
