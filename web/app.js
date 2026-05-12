@@ -20,11 +20,23 @@ function log(msg) {
   devLog.scrollTop = devLog.scrollHeight;
 }
 
-function appendDialogue(role, text) {
+function appendDialogue(role, text, extras) {
   const div = document.createElement("div");
   div.className = role;
   div.textContent = (role === "agent" ? "Coach: " : "You: ") + text;
   dialogue.appendChild(div);
+  if (extras && extras.translation) {
+    const tr = document.createElement("div");
+    tr.className = "translation";
+    tr.textContent = "  " + extras.translation;
+    dialogue.appendChild(tr);
+  }
+  if (extras && extras.gloss && extras.gloss.length) {
+    const gl = document.createElement("div");
+    gl.className = "gloss";
+    gl.textContent = "  " + extras.gloss.map(g => `${g.w} ${g.ipa || ""} ${g.zh || ""}`.trim()).join("  ·  ");
+    dialogue.appendChild(gl);
+  }
   dialogue.scrollTop = dialogue.scrollHeight;
 }
 
@@ -40,22 +52,52 @@ async function startSession() {
   ws = new WebSocket(`ws://${location.host}/ws/session`);
   ws.binaryType = "arraybuffer";
 
-  const audioQueue = [];
-  let agentAudio = null;
+  // Strict FIFO playback. Each agent turn = one buffer. Caption opens a new
+  // buffer; bytes append to the *current* (open) buffer; agent_done seals it
+  // and appends to the queue. A single worker awaits onended before pulling
+  // the next item, so two voices can never overlap regardless of how fast
+  // the server pushes.
+  let currentBuffer = null;
+  const playQueue = [];
+  let workerRunning = false;
 
-  ws.onmessage = async (ev) => {
+  async function playWorker() {
+    if (workerRunning) return;
+    workerRunning = true;
+    try {
+      while (playQueue.length) {
+        const chunks = playQueue.shift();
+        if (!chunks.length) continue;
+        const blob = new Blob(chunks, { type: "audio/mpeg" });
+        const url = URL.createObjectURL(blob);
+        const a = new Audio(url);
+        await new Promise((resolve) => {
+          a.onended = resolve;
+          a.onerror = resolve;
+          a.play().catch((e) => { log("audio play err " + e); resolve(); });
+        });
+        URL.revokeObjectURL(url);
+      }
+    } finally {
+      workerRunning = false;
+    }
+  }
+
+  ws.onmessage = (ev) => {
     if (typeof ev.data === "string") {
       const msg = JSON.parse(ev.data);
       log(`<- ${msg.type}`);
       if (msg.type === "session_start") {
         statusEl.textContent = "ready";
       } else if (msg.type === "agent_caption") {
-        appendDialogue("agent", msg.text);
-        audioQueue.length = 0;
+        appendDialogue("agent", msg.text, { gloss: msg.gloss, translation: msg.translation });
+        currentBuffer = [];
       } else if (msg.type === "agent_done") {
-        await playMp3Chunks(audioQueue);
+        if (currentBuffer) { playQueue.push(currentBuffer); currentBuffer = null; }
+        playWorker();
       } else if (msg.type === "user_prompt") {
-        appendDialogue("agent", "[" + msg.prompt + "]");
+        appendDialogue("agent", "[" + msg.prompt + "]", { gloss: msg.gloss, translation: msg.translation });
+        if (msg.ideal) appendDialogue("agent", "  → " + msg.ideal, {});
         pttBtn.disabled = false;
         statusEl.textContent = "your turn — hold SPACE";
       } else if (msg.type === "user_transcript") {
@@ -69,7 +111,7 @@ async function startSession() {
         scorecardBody.textContent = JSON.stringify(msg.scores, null, 2);
       }
     } else {
-      audioQueue.push(ev.data);
+      if (currentBuffer) currentBuffer.push(ev.data);
     }
   };
 
@@ -82,7 +124,12 @@ async function playMp3Chunks(chunks) {
   const blob = new Blob(chunks, { type: "audio/mpeg" });
   const url = URL.createObjectURL(blob);
   const a = new Audio(url);
-  await a.play().catch((e) => log("audio play err " + e));
+  await new Promise((resolve) => {
+    a.onended = resolve;
+    a.onerror = resolve;
+    a.play().catch((e) => { log("audio play err " + e); resolve(); });
+  });
+  URL.revokeObjectURL(url);
 }
 
 async function startRecording() {
@@ -101,7 +148,13 @@ async function startRecording() {
     if (ws && ws.readyState === 1) ws.send(i16.buffer);
   };
   src.connect(proc);
-  proc.connect(audioCtx.destination);
+  // Connect to a muted gain node instead of destination — ScriptProcessor
+  // requires a downstream node to fire onaudioprocess, but we don't want
+  // to hear the mic in the speakers (that causes feedback).
+  const sink = audioCtx.createGain();
+  sink.gain.value = 0;
+  proc.connect(sink);
+  sink.connect(audioCtx.destination);
   window._sttStream = stream;
   window._sttProc = proc;
 }

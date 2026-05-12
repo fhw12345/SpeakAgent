@@ -33,7 +33,7 @@ def test_full_session_round_trip():
             saw_session_start = False
             saw_session_end = False
             scores_seen = 0
-            for _ in range(40):
+            for _ in range(200):
                 msg = ws.receive()
                 if "text" in msg and msg["text"]:
                     data = json.loads(msg["text"])

@@ -59,13 +59,25 @@ async def ws_session(ws: WebSocket):
 
             if turn["speaker"] == "agent":
                 voice = pick_voice(week=plan.week, turn_index=sess.coach._idx)
-                await ws.send_json({"type": "agent_caption", "text": turn["say"], "voice": voice})
+                await ws.send_json({
+                    "type": "agent_caption",
+                    "text": turn["say"],
+                    "voice": voice,
+                    "gloss": turn.get("gloss", []),
+                    "translation": turn.get("translation", ""),
+                })
                 async for chunk in synthesize_stream(turn["say"], voice=voice):
                     await ws.send_bytes(chunk)
                 await ws.send_json({"type": "agent_done"})
                 _progress.append_turn(sess.id, plan.id, {"role": "agent", "text": turn["say"]})
             else:
-                await ws.send_json({"type": "user_prompt", "prompt": turn.get("prompt", "Your turn.")})
+                await ws.send_json({
+                    "type": "user_prompt",
+                    "prompt": turn.get("prompt", "Your turn."),
+                    "ideal": turn.get("ideal", ""),
+                    "gloss": turn.get("gloss", []),
+                    "translation": turn.get("translation", ""),
+                })
                 pcm = await _receive_user_audio(ws, sess)
                 stt_res = _get_stt().transcribe(pcm)
                 await ws.send_json({"type": "user_transcript", "text": stt_res.text, "confidence": stt_res.confidence})

@@ -1,18 +1,135 @@
 id: w1d1
-title: "Week 1 Day 1 — Listening foundation: greetings & welcome"
+title: "Week 1 Day 1 — Listening foundation: AI Agent vocabulary"
 week: 1
+
 turns:
+  # ---- Warm-up ----
   - speaker: agent
-    say: "Welcome to your first speaking practice. I'll say a sentence; you repeat it."
+    say: "Welcome to your first day of speaking practice. Today we focus on listening and repeating short sentences about AI agents."
+    translation: "欢迎来到口语练习第一天。今天我们专注于听和复述与 AI agent 相关的短句。"
+
   - speaker: agent
-    say: "Hello, and welcome to the interview."
+    say: "I will say each sentence twice. Then you repeat it. Hold the spacebar to talk."
+    translation: "我会把每句话说两遍。然后你跟着重复。按住空格键说话。"
+
+  - speaker: agent
+    say: "Let's start with simple words. An agent is a program that makes decisions and takes actions."
+    translation: "让我们从简单的词开始。agent (智能体) 是一个能做决策并采取行动的程序。"
+    gloss:
+      - { w: "agent",     ipa: "/ˈeɪdʒənt/",   zh: "智能体" }
+      - { w: "decisions", ipa: "/dɪˈsɪʒənz/",  zh: "决策" }
+      - { w: "actions",   ipa: "/ˈækʃənz/",    zh: "行动" }
+
+  # ---- Intensive listening + shadowing block ----
+
+  - speaker: agent
+    say: "An agent uses tools to get things done."
+    translation: "agent 使用工具来完成任务。"
+    gloss:
+      - { w: "tools", ipa: "/tuːlz/", zh: "工具" }
   - speaker: user
-    prompt: "Now you repeat: Hello, and welcome to the interview."
-    ideal: "Hello, and welcome to the interview."
+    prompt: "Repeat: An agent uses tools to get things done."
+    ideal: "An agent uses tools to get things done."
+
   - speaker: agent
-    say: "Great. Let's try one more."
-  - speaker: agent
-    say: "Thanks for taking the time to speak with me today."
+    say: "The model decides which tool to call."
+    translation: "模型决定调用哪个工具。"
+    gloss:
+      - { w: "decides", ipa: "/dɪˈsaɪdz/", zh: "决定" }
+      - { w: "call",    ipa: "/kɔːl/",     zh: "调用" }
   - speaker: user
-    prompt: "Your turn."
-    ideal: "Thanks for taking the time to speak with me today."
+    prompt: "Repeat: The model decides which tool to call."
+    ideal: "The model decides which tool to call."
+
+  - speaker: agent
+    say: "Each step, the agent reads the result and chooses the next action."
+    translation: "每一步, agent 读取结果并选择下一个行动。"
+    gloss:
+      - { w: "step",    ipa: "/step/",     zh: "步骤" }
+      - { w: "result",  ipa: "/rɪˈzʌlt/",  zh: "结果" }
+      - { w: "chooses", ipa: "/ˈtʃuːzɪz/", zh: "选择" }
+  - speaker: user
+    prompt: "Repeat: Each step, the agent reads the result and chooses the next action."
+    ideal: "Each step, the agent reads the result and chooses the next action."
+
+  - speaker: agent
+    say: "We use a loop to let the agent keep working until the task is done."
+    translation: "我们用一个循环让 agent 持续工作直到任务完成。"
+    gloss:
+      - { w: "loop", ipa: "/luːp/", zh: "循环" }
+      - { w: "task", ipa: "/tæsk/", zh: "任务" }
+  - speaker: user
+    prompt: "Repeat: We use a loop to let the agent keep working until the task is done."
+    ideal: "We use a loop to let the agent keep working until the task is done."
+
+  - speaker: agent
+    say: "Memory lets the agent remember what happened earlier."
+    translation: "记忆让 agent 记住之前发生的事。"
+    gloss:
+      - { w: "memory",   ipa: "/ˈmeməri/",   zh: "记忆" }
+      - { w: "remember", ipa: "/rɪˈmembər/", zh: "记住" }
+      - { w: "earlier",  ipa: "/ˈɜːrliər/",  zh: "之前" }
+  - speaker: user
+    prompt: "Repeat: Memory lets the agent remember what happened earlier."
+    ideal: "Memory lets the agent remember what happened earlier."
+
+  - speaker: agent
+    say: "A prompt is the instruction we give to the model."
+    translation: "prompt (提示词) 是我们给模型的指令。"
+    gloss:
+      - { w: "prompt",      ipa: "/prɑːmpt/",     zh: "提示词" }
+      - { w: "instruction", ipa: "/ɪnˈstrʌkʃən/", zh: "指令" }
+  - speaker: user
+    prompt: "Repeat: A prompt is the instruction we give to the model."
+    ideal: "A prompt is the instruction we give to the model."
+
+  - speaker: agent
+    say: "When the model is unsure, it should ask the user instead of guessing."
+    translation: "当模型不确定时, 它应该询问用户而不是猜测。"
+    gloss:
+      - { w: "unsure",   ipa: "/ʌnˈʃʊr/",  zh: "不确定" }
+      - { w: "instead",  ipa: "/ɪnˈsted/", zh: "代替" }
+      - { w: "guessing", ipa: "/ˈɡesɪŋ/",  zh: "猜测" }
+  - speaker: user
+    prompt: "Repeat: When the model is unsure, it should ask the user instead of guessing."
+    ideal: "When the model is unsure, it should ask the user instead of guessing."
+
+  - speaker: agent
+    say: "A good agent stops cleanly when the goal is reached."
+    translation: "一个好的 agent 在目标达成时干净利落地停止。"
+    gloss:
+      - { w: "cleanly", ipa: "/ˈkliːnli/", zh: "干净利落地" }
+      - { w: "goal",    ipa: "/ɡoʊl/",     zh: "目标" }
+      - { w: "reached", ipa: "/riːtʃt/",   zh: "达成" }
+  - speaker: user
+    prompt: "Repeat: A good agent stops cleanly when the goal is reached."
+    ideal: "A good agent stops cleanly when the goal is reached."
+
+  # ---- Free recall block ----
+
+  - speaker: agent
+    say: "Now let's practice answering. What does an agent use to get things done?"
+    translation: "现在我们练习回答。agent 用什么来完成任务?"
+  - speaker: user
+    prompt: "Answer in one short sentence. Hint: 'An agent uses ___ to get things done.'"
+    ideal: "An agent uses tools to get things done."
+
+  - speaker: agent
+    say: "Why does the agent need memory?"
+    translation: "为什么 agent 需要记忆?"
+  - speaker: user
+    prompt: "Answer in one sentence. Hint: 'Memory lets the agent ___.'"
+    ideal: "Memory lets the agent remember what happened earlier."
+
+  - speaker: agent
+    say: "What should the model do when it is unsure?"
+    translation: "当模型不确定时它应该做什么?"
+  - speaker: user
+    prompt: "Answer in one sentence. Hint: 'It should ___ instead of ___.'"
+    ideal: "It should ask the user instead of guessing."
+
+  # ---- Wrap-up ----
+
+  - speaker: agent
+    say: "Great work today. Tomorrow we will add more vocabulary about tools and APIs. See you then."
+    translation: "今天做得很好。明天我们会增加更多关于工具和 API 的词汇。明天见。"
