@@ -1,9 +1,27 @@
-"""Coach state machine. Pure orchestration; no HTTP, no I/O for adapters."""
+"""Coach state machine. Pure orchestration; no HTTP, no I/O for adapters.
+
+Phase 3 also exposes `stream_agent_turn(ws, conversation_state)` — a
+streaming agent-speech path that pipes Claude SSE -> sentence splitter ->
+Azure TTS per sentence -> WebSocket frames. Selected via env flag
+`SPEAKAGENT_STREAMING=on` (default). When `off`, callers should fall
+back to the Phase 2 blocking path (`tts.synthesize_stream`).
+"""
+import base64
+import os
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
+
+from fastapi import WebSocketDisconnect
 
 from server.lesson import LessonPlan
+from server.llm_stream import stream_claude
+from server.logging_setup import get_logger
 from server.scorer import score_turn, TurnScore
+from server.sentence_splitter import SentenceAccumulator
+from server.tts import synthesize_bytes
+from server import ws_messages
+
+_log = get_logger("coach")
 
 
 class CoachState(str, Enum):
@@ -50,3 +68,76 @@ class Coach:
         else:
             self.state = CoachState.NEXT_TURN
         return s
+
+
+def streaming_enabled() -> bool:
+    return os.environ.get("SPEAKAGENT_STREAMING", "on").lower() != "off"
+
+
+async def stream_agent_turn(
+    ws,
+    messages: list[dict],
+    voice: str,
+    *,
+    model: str | None = None,
+    stream_fn: Callable[..., Any] | None = None,
+    tts_fn: Callable[[str, str], Awaitable[bytes]] | None = None,
+) -> str:
+    """Stream an agent turn: Claude SSE -> sentence -> TTS -> WS.
+
+    Emits `agent_partial_text` per completed sentence, `agent_audio` per
+    synthesized sentence, and a single `agent_done` at the end. Errors on a
+    single sentence emit `agent_error` and continue. Returns the full text.
+
+    `stream_fn` and `tts_fn` are injected for tests.
+    """
+    sf = stream_fn or stream_claude
+    tf = tts_fn or synthesize_bytes
+    splitter = SentenceAccumulator()
+    full_parts: list[str] = []
+    index = 0
+
+    async def _emit_sentence(sentence: str) -> None:
+        nonlocal index
+        await ws.send_json(ws_messages.agent_partial_text(sentence, index))
+        try:
+            audio = await tf(sentence, voice)
+            b64 = base64.b64encode(audio).decode("ascii")
+            await ws.send_json(ws_messages.agent_audio(b64, index))
+        except WebSocketDisconnect:
+            raise
+        except Exception as e:
+            _log.warning("tts_sentence_failed", index=index, error=str(e)[:200])
+            try:
+                await ws.send_json(ws_messages.agent_error(f"tts_failed: {e}", index))
+            except WebSocketDisconnect:
+                raise
+        index += 1
+
+    try:
+        kwargs = {}
+        if model is not None:
+            kwargs["model"] = model
+        async for delta in sf(messages, **kwargs):
+            full_parts.append(delta)
+            for sentence in splitter.push(delta):
+                await _emit_sentence(sentence)
+    except WebSocketDisconnect:
+        _log.info("ws_disconnect_during_stream")
+        return "".join(full_parts).strip()
+    except Exception as e:
+        _log.warning("llm_stream_failed", error=str(e)[:200])
+        try:
+            await ws.send_json(ws_messages.agent_error(f"llm_stream_failed: {e}", None))
+        except WebSocketDisconnect:
+            return "".join(full_parts).strip()
+
+    try:
+        for sentence in splitter.flush():
+            await _emit_sentence(sentence)
+        full_text = "".join(full_parts).strip()
+        await ws.send_json(ws_messages.agent_done(full_text))
+    except WebSocketDisconnect:
+        _log.info("ws_disconnect_during_flush")
+        return "".join(full_parts).strip()
+    return full_text
