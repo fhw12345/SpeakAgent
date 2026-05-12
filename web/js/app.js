@@ -34,7 +34,11 @@
     if (scorecardBody) scorecardBody.textContent = "";
     if (statusEl) statusEl.textContent = "idle";
     if (startBtn) startBtn.disabled = false;
-    if (pttBtn) pttBtn.disabled = true;
+    if (pttBtn) { pttBtn.disabled = true; pttBtn.hidden = false; }
+    const rtControls = document.getElementById("realtime-controls");
+    const rtInput = document.getElementById("realtime-input");
+    if (rtControls) rtControls.hidden = true;
+    if (rtInput) { rtInput.value = ""; rtInput.disabled = false; }
     lessonTitle.textContent = "";
     if (window.listView) window.listView.fetchAndRender(nextOrder);
   }
@@ -177,10 +181,76 @@
   }
 
   // Event wiring.
-  window.addEventListener("lesson:open", (e) => {
+  window.addEventListener("lesson:open", async (e) => {
     currentLesson = { id: e.detail.id, order: e.detail.order };
     showDialogue(e.detail.id);
+    try {
+      const r = await fetch("/api/lesson/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lesson_id: e.detail.id }),
+      });
+      const j = await r.json();
+      if (j.mode === "realtime") {
+        startRealtime(j);
+      }
+    } catch (err) {
+      log("lesson_start_err " + err);
+    }
   });
+
+  function startRealtime(startResp) {
+    const sessionId = startResp.session_id;
+    if (startBtn) startBtn.disabled = true;
+    if (pttBtn) { pttBtn.disabled = true; pttBtn.hidden = true; }
+    const rtControls = document.getElementById("realtime-controls");
+    const rtInput = document.getElementById("realtime-input");
+    const rtSend = document.getElementById("realtime-send");
+    if (rtControls) rtControls.hidden = false;
+    statusEl.textContent = "realtime — type to reply";
+    appendDialogue("agent", startResp.first_agent_utterance, {});
+
+    let done = false;
+
+    async function sendUserTurn() {
+      if (done) return;
+      const text = (rtInput.value || "").trim();
+      if (!text) return;
+      rtInput.value = "";
+      appendDialogue("user", text);
+      rtSend.disabled = true;
+      try {
+        const r = await fetch("/api/lesson/turn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId, user_text: text }),
+        });
+        const j = await r.json();
+        if (j.agent_utterance) appendDialogue("agent", j.agent_utterance, {});
+        if (j.done) {
+          done = true;
+          statusEl.textContent = "session complete";
+          rtInput.disabled = true;
+          window.dispatchEvent(new CustomEvent("session_end", {
+            detail: {
+              lessonId: currentLesson ? currentLesson.id : null,
+              order: currentLesson ? currentLesson.order : null,
+            },
+          }));
+        }
+      } catch (err) {
+        log("realtime_turn_err " + err);
+      } finally {
+        rtSend.disabled = false;
+      }
+    }
+
+    if (rtSend) rtSend.onclick = sendUserTurn;
+    if (rtInput) rtInput.onkeydown = (ev) => {
+      if (ev.key === "Enter") { ev.preventDefault(); sendUserTurn(); }
+    };
+  }
+
 
   window.addEventListener("session_end", (e) => {
     if (ws && ws.readyState === 1) try { ws.close(); } catch (_) {}

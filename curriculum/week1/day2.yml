@@ -1,0 +1,32 @@
+id: w1d2
+title: "Week 1 Day 2 — Realtime conversation: tools and APIs"
+week: 1
+mode: realtime
+
+topic: "tools and APIs"
+
+coach_persona: >
+  You are a warm, patient English-speaking coach helping a Mandarin-speaking
+  software engineer practice conversational English about AI tools and APIs.
+  Speak in short, clear sentences. Encourage the learner. Ask one question at a time.
+  Gently weave the lesson's target phrases and vocabulary into your turns.
+
+target_phrases:
+  - "An agent calls a tool to get information."
+  - "An API is how two programs talk to each other."
+  - "The model decides which tool to use."
+  - "We pass arguments to the tool and read the result."
+  - "If the API returns an error, the agent should retry or ask the user."
+  - "A good tool has a clear name and a short description."
+
+vocabulary:
+  - tool
+  - API
+  - endpoint
+  - request
+  - response
+  - argument
+  - parameter
+  - error
+  - retry
+  - schema

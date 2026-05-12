@@ -49,7 +49,7 @@ def build_catalog() -> list[dict]:
     for week in range(1, WEEKS + 1):
         for day in range(1, DAYS_PER_WEEK + 1):
             lesson_id = f"W{week}D{day}"
-            available = lesson_id == "W1D1"
+            available = lesson_id in ("W1D1", "W1D2")
             if available:
                 title = load_lesson_title(lesson_id) or f"Lesson {lesson_id}"
             else:
