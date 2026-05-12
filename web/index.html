@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>speakAgent</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>speakAgent</h1>
+    <span id="lesson-title">Loading…</span>
+  </header>
+  <main>
+    <section id="dialogue"></section>
+    <section id="controls">
+      <button id="start-btn">Start lesson</button>
+      <button id="ptt-btn" disabled>Hold SPACE to talk</button>
+      <span id="status">idle</span>
+    </section>
+    <section id="scorecard" hidden>
+      <h2>Scorecard</h2>
+      <pre id="scorecard-body"></pre>
+    </section>
+    <details id="dev-panel">
+      <summary>Dev panel</summary>
+      <pre id="dev-log"></pre>
+    </details>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
