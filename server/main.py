@@ -11,6 +11,7 @@ from server.config import load_config
 from server.lesson import load_lesson
 from server.logging_setup import configure_logging, get_logger
 from server.progress import ProgressStore
+from server.routes.lessons import router as lessons_router
 from server.session import new_session
 from server.stt import SttEngine
 from server.tts import pick_voice, synthesize_stream
@@ -22,6 +23,7 @@ _data_dir = os.environ.get("SPEAKAGENT_DATA_DIR", _cfg.data_dir)
 _progress = ProgressStore(data_dir=_data_dir)
 
 app = FastAPI(title="speakAgent")
+app.include_router(lessons_router)
 _stt: SttEngine | None = None
 
 
