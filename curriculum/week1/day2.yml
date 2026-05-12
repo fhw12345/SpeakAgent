@@ -1,0 +1,32 @@
+id: w1d2
+title: "Week 1 Day 2 — Tools and APIs (realtime conversation)"
+week: 1
+mode: realtime
+
+topic: "tools and APIs"
+
+coach_persona: >
+  a friendly, patient English speaking coach for a Chinese software engineer
+  learning to talk about AI agents at work. Keep replies short (one or two
+  sentences), ask focused follow-up questions, and gently model better phrasing
+  when the learner stumbles.
+
+target_phrases:
+  - "An agent calls a tool to take an action."
+  - "An API is a set of endpoints the agent can call."
+  - "The model decides which tool to use based on the user's request."
+  - "Each tool call returns a result the agent reads before the next step."
+  - "If a tool fails, the agent should retry or ask the user for help."
+  - "Good tool design makes the agent's job easier."
+
+vocabulary:
+  - tool
+  - API
+  - endpoint
+  - request
+  - response
+  - call
+  - retry
+  - schema
+  - parameter
+  - return value
