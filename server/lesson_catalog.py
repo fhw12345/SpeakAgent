@@ -43,13 +43,13 @@ def load_lesson_title(lesson_id: str) -> Optional[str]:
 
 
 def build_catalog() -> list[dict]:
-    """Build the 56-lesson catalog. Only W1D1 is available; others are 'Coming soon'."""
+    """Build the 56-lesson catalog. A lesson is `available` iff its YAML exists."""
     out: list[dict] = []
     order = 1
     for week in range(1, WEEKS + 1):
         for day in range(1, DAYS_PER_WEEK + 1):
             lesson_id = f"W{week}D{day}"
-            available = lesson_id == "W1D1"
+            available = os.path.isfile(_yaml_path_for(lesson_id))
             if available:
                 title = load_lesson_title(lesson_id) or f"Lesson {lesson_id}"
             else:
