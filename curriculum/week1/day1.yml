@@ -1,0 +1,18 @@
+id: w1d1
+title: "Week 1 Day 1 — Listening foundation: greetings & welcome"
+week: 1
+turns:
+  - speaker: agent
+    say: "Welcome to your first speaking practice. I'll say a sentence; you repeat it."
+  - speaker: agent
+    say: "Hello, and welcome to the interview."
+  - speaker: user
+    prompt: "Now you repeat: Hello, and welcome to the interview."
+    ideal: "Hello, and welcome to the interview."
+  - speaker: agent
+    say: "Great. Let's try one more."
+  - speaker: agent
+    say: "Thanks for taking the time to speak with me today."
+  - speaker: user
+    prompt: "Your turn."
+    ideal: "Thanks for taking the time to speak with me today."
