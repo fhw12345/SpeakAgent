@@ -7,6 +7,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from server import coach as coach_mod
 from server.config import load_config
 from server.lesson import load_lesson
 from server.logging_setup import configure_logging, get_logger
@@ -68,9 +69,12 @@ async def ws_session(ws: WebSocket):
                     "gloss": turn.get("gloss", []),
                     "translation": turn.get("translation", ""),
                 })
-                async for chunk in synthesize_stream(turn["say"], voice=voice):
-                    await ws.send_bytes(chunk)
-                await ws.send_json({"type": "agent_done"})
+                if coach_mod.streaming_enabled():
+                    await coach_mod.stream_agent_turn(ws, turn, voice)
+                else:
+                    async for chunk in synthesize_stream(turn["say"], voice=voice):
+                        await ws.send_bytes(chunk)
+                    await ws.send_json({"type": "agent_done"})
                 _progress.append_turn(sess.id, plan.id, {"role": "agent", "text": turn["say"]})
             else:
                 await ws.send_json({

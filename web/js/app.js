@@ -11,6 +11,7 @@
   const scorecard = document.getElementById("scorecard");
   const scorecardBody = document.getElementById("scorecard-body");
   const devLog = document.getElementById("dev-log");
+  const agentCaption = document.getElementById("agent-caption");
 
   let ws = null;
   let audioCtx = null;
@@ -30,6 +31,7 @@
     listView.hidden = false;
     // Reset dialogue area for a clean next session.
     dialogue.innerHTML = "";
+    if (agentCaption) agentCaption.textContent = "";
     if (scorecard) scorecard.hidden = true;
     if (scorecardBody) scorecardBody.textContent = "";
     if (statusEl) statusEl.textContent = "idle";
@@ -43,6 +45,7 @@
     listView.hidden = true;
     dialogueView.hidden = false;
     dialogue.innerHTML = "";
+    if (agentCaption) agentCaption.textContent = "";
     if (scorecard) scorecard.hidden = true;
     if (scorecardBody) scorecardBody.textContent = "";
     if (statusEl) statusEl.textContent = "idle";
@@ -111,10 +114,31 @@
         } else if (msg.type === "agent_caption") {
           appendDialogue("agent", msg.text, { gloss: msg.gloss, translation: msg.translation });
           currentBuffer = [];
+          if (agentCaption) agentCaption.textContent = "";
+        } else if (msg.type === "agent_partial_text") {
+          if (agentCaption) {
+            const sep = agentCaption.textContent ? " " : "";
+            agentCaption.textContent += sep + msg.text;
+          }
+        } else if (msg.type === "agent_audio") {
+          if (typeof msg.b64 === "string") {
+            const bin = atob(msg.b64);
+            const arr = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+            // Phase 3 streaming: enqueue each sentence's audio for immediate
+            // playback so the user hears sentence N while sentence N+1 is
+            // still being generated.
+            playQueue.push([arr.buffer]);
+            playWorker();
+          }
+        } else if (msg.type === "agent_error") {
+          log(`agent_error idx=${msg.index} ${msg.detail || ""}`);
         } else if (msg.type === "agent_done") {
-          if (currentBuffer) { playQueue.push(currentBuffer); currentBuffer = null; }
+          if (currentBuffer && currentBuffer.length) { playQueue.push(currentBuffer); }
+          currentBuffer = null;
           playWorker();
         } else if (msg.type === "user_prompt") {
+          if (agentCaption) agentCaption.textContent = "";
           appendDialogue("agent", "[" + msg.prompt + "]", { gloss: msg.gloss, translation: msg.translation });
           if (msg.ideal) appendDialogue("agent", "  → " + msg.ideal, {});
           pttBtn.disabled = false;
