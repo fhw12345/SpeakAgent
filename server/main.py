@@ -15,6 +15,7 @@ from server.routes.lessons import router as lessons_router
 from server.session import new_session
 from server.stt import SttEngine
 from server.tts import pick_voice, synthesize_stream
+from server.agent_turn import stream_agent_turn
 
 configure_logging()
 _log = get_logger("server")
@@ -61,16 +62,20 @@ async def ws_session(ws: WebSocket):
 
             if turn["speaker"] == "agent":
                 voice = pick_voice(week=plan.week, turn_index=sess.coach._idx)
-                await ws.send_json({
-                    "type": "agent_caption",
-                    "text": turn["say"],
-                    "voice": voice,
-                    "gloss": turn.get("gloss", []),
-                    "translation": turn.get("translation", ""),
-                })
-                async for chunk in synthesize_stream(turn["say"], voice=voice):
-                    await ws.send_bytes(chunk)
-                await ws.send_json({"type": "agent_done"})
+                streaming = os.environ.get("SPEAKAGENT_STREAMING", "on").lower() == "on"
+                if streaming:
+                    await stream_agent_turn(ws, sess, turn, voice, plan)
+                else:
+                    await ws.send_json({
+                        "type": "agent_caption",
+                        "text": turn["say"],
+                        "voice": voice,
+                        "gloss": turn.get("gloss", []),
+                        "translation": turn.get("translation", ""),
+                    })
+                    async for chunk in synthesize_stream(turn["say"], voice=voice):
+                        await ws.send_bytes(chunk)
+                    await ws.send_json({"type": "agent_done"})
                 _progress.append_turn(sess.id, plan.id, {"role": "agent", "text": turn["say"]})
             else:
                 await ws.send_json({

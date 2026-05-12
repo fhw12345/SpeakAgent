@@ -60,6 +60,14 @@ async def _edge_stream(text: str, voice: str) -> AsyncIterator[bytes]:
             yield chunk["data"]
 
 
+async def synthesize_bytes(text: str, voice: str) -> bytes:
+    """Collect the full streamed audio into a single bytes blob."""
+    buf = bytearray()
+    async for chunk in synthesize_stream(text, voice):
+        buf.extend(chunk)
+    return bytes(buf)
+
+
 async def synthesize_stream(text: str, voice: str) -> AsyncIterator[bytes]:
     """Yield raw MP3 chunks. Tries Azure Speech first, falls back to edge-tts."""
     try:
