@@ -1,0 +1,42 @@
+[
+  {
+    "id": "iv1",
+    "category": "behavioral",
+    "difficulty": "easy",
+    "question": "Tell me about a project where you built or used an AI agent.",
+    "keywords": ["agent", "tools", "loop", "memory"],
+    "model_answer_outline": "Project name -> problem -> agent loop (perceive/decide/act) -> tools used -> outcome -> what you'd do differently."
+  },
+  {
+    "id": "iv2",
+    "category": "llm_agent_technical",
+    "difficulty": "medium",
+    "question": "Explain how function calling differs from RAG, and when you'd use each.",
+    "keywords": ["function calling", "tools", "RAG", "retrieval"],
+    "model_answer_outline": "FC = model invokes typed actions; RAG = inject retrieved context. Use FC for actions/state changes, RAG for grounding in private knowledge."
+  },
+  {
+    "id": "iv3",
+    "category": "llm_agent_technical",
+    "difficulty": "medium",
+    "question": "How do you stop an agent from looping forever or burning tokens?",
+    "keywords": ["budget", "rate limit", "kill switch", "max steps"],
+    "model_answer_outline": "Max steps + token budget + cost cap + escalation list + kill switch + observability on cost/time per task."
+  },
+  {
+    "id": "iv4",
+    "category": "system_design",
+    "difficulty": "hard",
+    "question": "Design a multi-tenant agent platform that runs untrusted user prompts. What are the failure modes?",
+    "keywords": ["sandbox", "rate limit", "prompt injection", "isolation"],
+    "model_answer_outline": "Per-tenant queues + per-tenant token budget + sandboxed tools + prompt-injection defenses + audit logs + outbound network policy."
+  },
+  {
+    "id": "iv5",
+    "category": "behavioral",
+    "difficulty": "easy",
+    "question": "Walk me through a time an agent failed in production. What did you do?",
+    "keywords": ["incident", "rollback", "observability"],
+    "model_answer_outline": "Symptom -> detection (logs/metrics) -> rollback or fallback -> root cause -> fix + test + guardrail."
+  }
+]
