@@ -1,0 +1,95 @@
+[
+  {
+    "id": "fundagent",
+    "name": "FundAgent",
+    "repo_path": "D:/repo/FundAgent",
+    "one_liner": "Multi-vendor LLM debate for Chinese mutual fund analysis.",
+    "tech_keywords": ["multi-vendor LLM", "debate architecture", "vision import", "AkShare"],
+    "interview_angles": [
+      {"type": "behavioral", "q": "Walk me through a project where you combined multiple LLMs."},
+      {"type": "technical_deep_dive", "q": "Why debate vs ensemble vs single-model? When does debate hurt?"},
+      {"type": "system_design", "q": "How would you scale the debate architecture to 100k users?"},
+      {"type": "trade_off", "q": "Cost vs quality — when is debate worth it?"}
+    ],
+    "hard_words": ["heterogeneous", "consensus", "adjudication", "drawdown"],
+    "model_answer_outline": "Problem -> why single model insufficient -> debate protocol -> consensus rule -> cost mitigation."
+  },
+  {
+    "id": "nexis",
+    "name": "Nexis",
+    "repo_path": "D:/repo/Nexis",
+    "one_liner": "Personal knowledge agent.",
+    "tech_keywords": ["RAG", "memory", "personal corpus"],
+    "interview_angles": [
+      {"type": "technical_deep_dive", "q": "How do you decide what to embed vs what to keep verbatim?"},
+      {"type": "system_design", "q": "How would you keep a personal knowledge agent fresh as documents change?"}
+    ],
+    "hard_words": ["chunking", "reranking", "hybrid search"],
+    "model_answer_outline": "Corpus shape -> chunking choices -> retrieval (BM25 + vector) -> rerank -> answer synthesis."
+  },
+  {
+    "id": "nbavedio",
+    "name": "NBAVedio",
+    "repo_path": "D:/repo/nba/NBAVedio",
+    "one_liner": "Multi-vendor LLM pipeline for NBA video editorial workflow.",
+    "tech_keywords": ["multi-vendor LLM", "factory pattern", "retry/backoff"],
+    "interview_angles": [
+      {"type": "technical_deep_dive", "q": "How do you swap LLM vendors without rewriting prompts?"},
+      {"type": "trade_off", "q": "When would you NOT abstract over vendor SDKs?"}
+    ],
+    "hard_words": ["adapter", "exponential backoff", "graceful degradation"],
+    "model_answer_outline": "Adapter interface -> factory -> retry policy -> fallback chain -> observability."
+  },
+  {
+    "id": "agent-maestro",
+    "name": "Agent Maestro",
+    "repo_path": "D:/repo/agent-maestro",
+    "one_liner": "Local Anthropic-compatible gateway routing to multiple model providers.",
+    "tech_keywords": ["gateway", "Anthropic API shim", "routing"],
+    "interview_angles": [
+      {"type": "system_design", "q": "Why a local gateway instead of calling vendors directly?"},
+      {"type": "technical_deep_dive", "q": "How do you handle prompt-cache compatibility across vendors?"}
+    ],
+    "hard_words": ["shim", "compatibility", "header normalization"],
+    "model_answer_outline": "Use cases (local dev + key isolation + observability) -> API shim -> per-vendor adapters -> caching."
+  },
+  {
+    "id": "vs-debugger-mcp",
+    "name": "vs-debugger-mcp",
+    "repo_path": "D:/repo/vs-debugger-mcp",
+    "one_liner": "MCP server exposing VS Code debug session to AI agents.",
+    "tech_keywords": ["MCP", "DAP", "stepwise debugging"],
+    "interview_angles": [
+      {"type": "technical_deep_dive", "q": "What's the smallest useful surface area for a debug-control MCP?"},
+      {"type": "system_design", "q": "How do you make tool-use safe when the tool can mutate program state?"}
+    ],
+    "hard_words": ["breakpoint", "stack frame", "expression evaluation"],
+    "model_answer_outline": "DAP basics -> chosen MCP tool surface -> safety rails on mutation -> agent UX."
+  },
+  {
+    "id": "cc-plugin",
+    "name": "cc-plugin",
+    "repo_path": "D:/repo/cc-plugin",
+    "one_liner": "Claude Code plugins for personal workflows.",
+    "tech_keywords": ["Claude Code", "skills", "hooks"],
+    "interview_angles": [
+      {"type": "technical_deep_dive", "q": "What makes a good Claude Code skill?"},
+      {"type": "trade_off", "q": "When to use a hook vs a skill vs an MCP tool?"}
+    ],
+    "hard_words": ["skill", "hook", "subagent"],
+    "model_answer_outline": "Skill = procedure prompt; hook = event-driven shell; MCP = typed tool. Pick by stateful-ness."
+  },
+  {
+    "id": "financialagent",
+    "name": "FinancialAgent",
+    "repo_path": "D:/repo/FinancialAgent",
+    "one_liner": "Agent assistant for personal finance analysis.",
+    "tech_keywords": ["tabular reasoning", "tool use"],
+    "interview_angles": [
+      {"type": "behavioral", "q": "How did you validate the agent's numerical answers?"},
+      {"type": "technical_deep_dive", "q": "When do you let the LLM compute vs delegate to a calculator tool?"}
+    ],
+    "hard_words": ["reconciliation", "audit trail"],
+    "model_answer_outline": "Tabular pitfalls -> calculator tool -> reconciliation -> audit log."
+  }
+]
