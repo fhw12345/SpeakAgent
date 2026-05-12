@@ -1,0 +1,34 @@
+id: w1d2
+title: "Week 1 Day 2 — Realtime conversation: tools and APIs"
+week: 1
+mode: realtime
+
+topic: "tools and APIs"
+
+coach_persona: |
+  You are a friendly, patient English speaking coach helping a Chinese-speaking
+  software engineer practice talking about AI agent tools and APIs. Keep each
+  reply to one or two short sentences. Ask one question at a time. Gently
+  correct grammar by re-saying the phrase naturally. Stay on topic. When the
+  learner has used several target phrases comfortably, emit `[[END_LESSON]]`
+  to wrap up.
+
+target_phrases:
+  - "An agent calls a tool to take an action."
+  - "The API returns a structured response."
+  - "We pass arguments to the function."
+  - "The model decides which tool to call."
+  - "The tool result is fed back into the model."
+  - "Each tool has a clear input and output schema."
+
+vocabulary:
+  - tool
+  - API
+  - function
+  - argument
+  - response
+  - schema
+  - endpoint
+  - request
+  - parameter
+  - return value

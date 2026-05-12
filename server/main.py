@@ -3,12 +3,15 @@ import json
 import os
 
 import numpy as np
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
+from server import coach as coach_dispatch
 from server.config import load_config
 from server.lesson import load_lesson
+from server.lesson_loader import load as load_lesson_spec
 from server.logging_setup import configure_logging, get_logger
 from server.progress import ProgressStore
 from server.routes.lessons import router as lessons_router
@@ -43,6 +46,32 @@ def api_today():
 @app.get("/api/progress")
 def api_progress():
     return {"due_words": _progress.due_words()}
+
+
+class _LessonStartReq(BaseModel):
+    lesson_id: str
+
+
+class _LessonTurnReq(BaseModel):
+    session_id: str
+    user_text: str
+
+
+@app.post("/api/lesson/start")
+def api_lesson_start(req: _LessonStartReq):
+    try:
+        spec = load_lesson_spec(req.lesson_id)
+    except (FileNotFoundError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return coach_dispatch.start_session(spec)
+
+
+@app.post("/api/lesson/turn")
+def api_lesson_turn(req: _LessonTurnReq):
+    try:
+        return coach_dispatch.handle_turn(req.session_id, req.user_text)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @app.websocket("/ws/session")

@@ -35,6 +35,8 @@
     if (statusEl) statusEl.textContent = "idle";
     if (startBtn) startBtn.disabled = false;
     if (pttBtn) pttBtn.disabled = true;
+    const rt = document.getElementById("realtime-controls");
+    if (rt) rt.hidden = true;
     lessonTitle.textContent = "";
     if (window.listView) window.listView.fetchAndRender(nextOrder);
   }
@@ -72,6 +74,30 @@
   async function startSession() {
     startBtn.disabled = true;
     statusEl.textContent = "connecting";
+
+    let mode = "scripted";
+    if (currentLesson && currentLesson.id) {
+      try {
+        const r = await fetch("/api/lesson/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lesson_id: currentLesson.id.toLowerCase() }),
+        });
+        if (r.ok) {
+          const start = await r.json();
+          mode = start.mode || "scripted";
+          if (mode === "realtime") {
+            statusEl.textContent = "ready";
+            appendDialogue("agent", start.first_agent_utterance || "", {});
+            startRealtimeLoop(start.session_id);
+            return;
+          }
+        }
+      } catch (e) {
+        log("lesson_start_failed " + e);
+      }
+    }
+
     ws = new WebSocket(`ws://${location.host}/ws/session`);
     ws.binaryType = "arraybuffer";
 
@@ -206,6 +232,49 @@
     pttBtn.addEventListener("mouseup", stopRecording);
   }
   if (startBtn) startBtn.addEventListener("click", startSession);
+
+  // Realtime (REST-driven) lesson flow.
+  const realtimeControls = document.getElementById("realtime-controls");
+  const realtimeInput = document.getElementById("realtime-input");
+  const realtimeSend = document.getElementById("realtime-send");
+  let realtimeSessionId = null;
+
+  function startRealtimeLoop(sessionId) {
+    realtimeSessionId = sessionId;
+    if (realtimeControls) realtimeControls.hidden = false;
+    if (realtimeInput) { realtimeInput.value = ""; realtimeInput.focus(); }
+  }
+
+  async function sendRealtimeTurn() {
+    if (!realtimeSessionId) return;
+    const text = (realtimeInput && realtimeInput.value || "").trim();
+    if (!text) return;
+    appendDialogue("user", text);
+    realtimeInput.value = "";
+    statusEl.textContent = "thinking…";
+    try {
+      const r = await fetch("/api/lesson/turn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: realtimeSessionId, user_text: text }),
+      });
+      const body = await r.json();
+      if (body.agent_utterance) appendDialogue("agent", body.agent_utterance, {});
+      statusEl.textContent = body.done ? "session complete" : "your turn";
+      if (body.done) {
+        if (realtimeControls) realtimeControls.hidden = true;
+        realtimeSessionId = null;
+      }
+    } catch (e) {
+      log("realtime_turn_failed " + e);
+      statusEl.textContent = "error";
+    }
+  }
+
+  if (realtimeSend) realtimeSend.addEventListener("click", sendRealtimeTurn);
+  if (realtimeInput) realtimeInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); sendRealtimeTurn(); }
+  });
 
   // Expose for tests.
   window.app = { showList, showDialogue };

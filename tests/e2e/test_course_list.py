@@ -37,7 +37,7 @@ def test_click_w1d1_opens_dialogue_view(server, page):
 def test_click_unavailable_shows_coming_soon_and_stays(server, page):
     page.goto(f"http://127.0.0.1:{server}/")
     page.wait_for_selector("#list-view .lesson-row")
-    page.click('.lesson-row[data-id="W1D2"]')
+    page.click('.lesson-row[data-id="W1D3"]')
     # Stays on list.
     assert page.locator("#list-view").is_visible()
     assert page.locator("#dialogue-view").is_hidden()

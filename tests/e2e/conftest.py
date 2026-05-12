@@ -55,3 +55,31 @@ def server():
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
+
+
+@pytest.fixture(scope="module")
+def realtime_server():
+    """Same as `server` but with LLM_MOCK=1 so realtime lessons work offline."""
+    SCREENSHOTS.mkdir(exist_ok=True)
+    port = _free_port()
+    env = os.environ.copy()
+    env["SPEAKAGENT_PORT"] = str(port)
+    env["WHISPER_DEVICE"] = "cpu"
+    env["LLM_MOCK"] = "1"
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "server.main:app",
+         "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning"],
+        cwd=str(REPO),
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    try:
+        _wait_for_server(port)
+        yield port
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
