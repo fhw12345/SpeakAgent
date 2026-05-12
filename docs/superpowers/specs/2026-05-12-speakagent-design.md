@@ -82,7 +82,16 @@ autopilot/ (separate long-running process)
 
 ### `server/tts.py`
 - `edge-tts` async streaming.
-- Voices: `en-US-AriaNeural` (default, clear female US), `en-US-GuyNeural` (male US), `en-GB-RyanNeural` (UK male, used in week 1–2 listening drills for accent variety).
+- Voices, used to expose the user to the four accents most common in remote AI Agent interviews:
+  - `en-US-AriaNeural` (US female, default), `en-US-GuyNeural` (US male)
+  - `en-GB-RyanNeural` (UK male), `en-GB-SoniaNeural` (UK female)
+  - `en-IN-NeerjaNeural` (Indian female), `en-IN-PrabhatNeural` (Indian male)
+  - `zh-CN-XiaoxiaoNeural` configured to speak English (Chinese-accented English; used sparingly to simulate domestic interviewers speaking English)
+- Accent rotation rules:
+  - Weeks 1–2 (listening foundation): US-only, build comprehension before adding accent stress.
+  - Weeks 3–4 (shadowing): US 70% / UK 30%.
+  - Weeks 5–6 (topic speaking): US 50% / UK 25% / Indian 15% / Chinese-accented 10%.
+  - Weeks 7–8 (mock interviews): random rotation across all four; each mock interview holds one accent throughout for realism. Coach records which accents the user struggles with most and biases SRS toward those clips.
 - Output: streamed MP3 chunks pushed over WebSocket as they arrive.
 - Fallback: if edge-tts unreachable, server signals client to use browser-native `speechSynthesis` API.
 
@@ -205,7 +214,7 @@ The user opted into **continuous (24/7) autopilot** via repo-local `CLAUDE.md`. 
 
 ### 9.3 Burn-in Plan
 
-For the first week after autopilot is enabled, the user is asked to review every `[auto]` branch before merging. After 7 days with no autopilot-caused regressions, the user may set a config flag to allow autopilot to additionally open draft PRs (still no auto-merge).
+User has opted out of mandatory per-branch review during burn-in (trusts the guardrails: branch-only commits, eval-suite gate, escalation list, kill switch). Autopilot runs from day 1 with full Spawn enabled. Daily digest is written to `autopilot/runs/digest-<date>.md` summarizing what was attempted, what landed on which branch, and what was escalated; user may skim or ignore. If a regression is later traced to an `[auto]` branch, the user can `touch autopilot/PAUSE` and we add the failure pattern to `policies/escalation.yml`.
 
 ---
 
