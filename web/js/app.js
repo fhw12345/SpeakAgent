@@ -3,6 +3,7 @@
   const listView = document.getElementById("list-view");
   const dialogueView = document.getElementById("dialogue-view");
   const dialogue = document.getElementById("dialogue");
+  const agentCaption = document.getElementById("agent-caption");
   const startBtn = document.getElementById("start-btn");
   const pttBtn = document.getElementById("ptt-btn");
   const backBtn = document.getElementById("back-btn");
@@ -111,10 +112,27 @@
         } else if (msg.type === "agent_caption") {
           appendDialogue("agent", msg.text, { gloss: msg.gloss, translation: msg.translation });
           currentBuffer = [];
+          if (agentCaption) agentCaption.textContent = "";
+        } else if (msg.type === "agent_partial_text") {
+          if (agentCaption) {
+            agentCaption.textContent =
+              (agentCaption.textContent ? agentCaption.textContent + " " : "") + msg.text;
+          }
+        } else if (msg.type === "agent_audio") {
+          // Streaming-mode audio frame (base64 MP3) for sentence msg.index.
+          const bin = atob(msg.b64);
+          const buf = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+          playQueue.push([buf.buffer]);
+          playWorker();
+        } else if (msg.type === "agent_error") {
+          log("agent_error " + (msg.detail || ""));
         } else if (msg.type === "agent_done") {
-          if (currentBuffer) { playQueue.push(currentBuffer); currentBuffer = null; }
+          if (currentBuffer && currentBuffer.length) { playQueue.push(currentBuffer); }
+          currentBuffer = null;
           playWorker();
         } else if (msg.type === "user_prompt") {
+          if (agentCaption) agentCaption.textContent = "";
           appendDialogue("agent", "[" + msg.prompt + "]", { gloss: msg.gloss, translation: msg.translation });
           if (msg.ideal) appendDialogue("agent", "  → " + msg.ideal, {});
           pttBtn.disabled = false;

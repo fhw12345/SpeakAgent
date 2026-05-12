@@ -5,6 +5,8 @@ header { display: flex; justify-content: space-between; align-items: baseline; }
 #dialogue .user  { color: #303; margin: .5rem 0; font-style: italic; }
 #dialogue .translation { color: #888; font-size: .85rem; margin: -.3rem 0 .2rem 1rem; }
 #dialogue .gloss { color: #06a; font-size: .8rem; margin: -.2rem 0 .4rem 1rem; font-family: 'Cambria Math', 'Times New Roman', serif; }
+#agent-caption { min-height: 1.4rem; margin: .4rem 0 0; padding: .4rem .6rem; color: #035; background: #eef5ff; border-radius: 6px; font-size: .95rem; }
+#agent-caption:empty { display: none; }
 #controls { margin-top: 1rem; display: flex; gap: .5rem; align-items: center; }
 button { padding: .5rem 1rem; font-size: 1rem; }
 button:disabled { opacity: .5; }
