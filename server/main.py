@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from server.config import load_config
+from server.coach import stream_agent_turn
 from server.lesson import load_lesson
 from server.logging_setup import configure_logging, get_logger
 from server.progress import ProgressStore
@@ -32,6 +33,10 @@ def _get_stt() -> SttEngine:
     if _stt is None:
         _stt = SttEngine(model_name=_cfg.whisper_model)
     return _stt
+
+
+def _streaming_enabled() -> bool:
+    return os.environ.get("SPEAKAGENT_STREAMING", "on").strip().lower() in ("on", "1", "true", "yes")
 
 
 @app.get("/api/today")
@@ -68,10 +73,14 @@ async def ws_session(ws: WebSocket):
                     "gloss": turn.get("gloss", []),
                     "translation": turn.get("translation", ""),
                 })
-                async for chunk in synthesize_stream(turn["say"], voice=voice):
-                    await ws.send_bytes(chunk)
-                await ws.send_json({"type": "agent_done"})
-                _progress.append_turn(sess.id, plan.id, {"role": "agent", "text": turn["say"]})
+                if _streaming_enabled():
+                    spoken = await stream_agent_turn(ws, prompt=turn["say"], voice=voice)
+                    _progress.append_turn(sess.id, plan.id, {"role": "agent", "text": spoken or turn["say"]})
+                else:
+                    async for chunk in synthesize_stream(turn["say"], voice=voice):
+                        await ws.send_bytes(chunk)
+                    await ws.send_json({"type": "agent_done"})
+                    _progress.append_turn(sess.id, plan.id, {"role": "agent", "text": turn["say"]})
             else:
                 await ws.send_json({
                     "type": "user_prompt",

@@ -12,3 +12,5 @@ button:disabled { opacity: .5; }
 #scorecard { margin-top: 1rem; padding: 1rem; background: #fff8e1; border-radius: 8px; }
 #dev-panel { margin-top: 2rem; }
 #dev-log { background: #111; color: #9f9; padding: .5rem; max-height: 240px; overflow: auto; font-size: .8rem; }
+#agent-caption { margin: .75rem 0; padding: .6rem .8rem; background: #eef6ff; border-left: 3px solid #58a; border-radius: 4px; color: #035; font-size: 1rem; min-height: 1.4em; white-space: pre-wrap; }
+#agent-caption:empty { display: none; }

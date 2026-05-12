@@ -11,6 +11,7 @@
   const scorecard = document.getElementById("scorecard");
   const scorecardBody = document.getElementById("scorecard-body");
   const devLog = document.getElementById("dev-log");
+  const captionEl = document.getElementById("agent-caption");
 
   let ws = null;
   let audioCtx = null;
@@ -111,6 +112,19 @@
         } else if (msg.type === "agent_caption") {
           appendDialogue("agent", msg.text, { gloss: msg.gloss, translation: msg.translation });
           currentBuffer = [];
+          if (captionEl) captionEl.textContent = "";
+        } else if (msg.type === "agent_partial_text") {
+          if (captionEl) {
+            const prefix = captionEl.textContent ? captionEl.textContent + " " : "";
+            captionEl.textContent = prefix + msg.text;
+          }
+          if (currentBuffer && currentBuffer.length) {
+            playQueue.push(currentBuffer);
+            currentBuffer = [];
+            playWorker();
+          }
+        } else if (msg.type === "agent_error") {
+          log(`agent_error idx=${msg.index} ${msg.detail}`);
         } else if (msg.type === "agent_done") {
           if (currentBuffer) { playQueue.push(currentBuffer); currentBuffer = null; }
           playWorker();
@@ -119,6 +133,7 @@
           if (msg.ideal) appendDialogue("agent", "  → " + msg.ideal, {});
           pttBtn.disabled = false;
           statusEl.textContent = "your turn — hold SPACE";
+          if (captionEl) captionEl.textContent = "";
         } else if (msg.type === "user_transcript") {
           appendDialogue("user", msg.text);
         } else if (msg.type === "score") {
