@@ -1,0 +1,12 @@
+{
+  "name": "speakagent-e2e",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Playwright TS e2e tests for speakAgent (Phase 4 barge-in).",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}
