@@ -1,4 +1,8 @@
-"""Coach state machine. Pure orchestration; no HTTP, no I/O for adapters."""
+"""Coach state machine. Pure orchestration; no HTTP, no I/O for adapters.
+
+Phase 2 adds `dispatch_turn` which routes to either the legacy scripted
+state machine or the realtime LLM-driven handler in `coach_realtime`,
+based on `LessonSpec.mode`."""
 from enum import Enum
 from typing import Dict, List, Optional
 
@@ -50,3 +54,20 @@ class Coach:
         else:
             self.state = CoachState.NEXT_TURN
         return s
+
+
+def dispatch_turn(lesson, session_id: str, user_text: str) -> dict:
+    """Route a user turn to the correct handler based on lesson mode.
+
+    Scripted lessons keep their existing per-WS handling (caller uses
+    `Coach.submit_user_response` directly). Realtime lessons go through
+    `coach_realtime.handle_turn`. This dispatcher exists so REST callers
+    can stay mode-agnostic.
+    """
+    mode = getattr(lesson, "mode", "scripted")
+    if mode == "realtime":
+        from server import coach_realtime
+        return coach_realtime.handle_turn(session_id, user_text)
+    raise NotImplementedError(
+        "dispatch_turn for scripted mode is handled via the existing Coach.submit_user_response path"
+    )

@@ -33,11 +33,23 @@ def _wait_for_server(port: int, timeout: float = 20.0) -> None:
 @pytest.fixture(scope="module")
 def server():
     """Start a real uvicorn server in a subprocess. Yields port. Tears down."""
+    yield from _start_server({})
+
+
+@pytest.fixture(scope="module")
+def mock_llm_server():
+    """Like `server`, but the subprocess has LLM_MOCK=1/STT_MOCK=1/TTS_MOCK=1.
+    Used by realtime e2e tests that must be deterministic."""
+    yield from _start_server({"LLM_MOCK": "1", "STT_MOCK": "1", "TTS_MOCK": "1"})
+
+
+def _start_server(extra_env: dict):
     SCREENSHOTS.mkdir(exist_ok=True)
     port = _free_port()
     env = os.environ.copy()
     env["SPEAKAGENT_PORT"] = str(port)
     env["WHISPER_DEVICE"] = "cpu"
+    env.update(extra_env)
     proc = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "server.main:app",
          "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning"],
