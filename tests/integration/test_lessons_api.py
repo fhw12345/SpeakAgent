@@ -25,12 +25,11 @@ def test_lesson_ids_format():
     assert len(ids) == 56
 
 
-def test_only_w1d1_available():
+def test_w1d1_and_w1d2_available():
     resp = client.get("/api/lessons")
     lessons = resp.json()["lessons"]
-    available = [l for l in lessons if l["available"]]
-    assert len(available) == 1
-    assert available[0]["id"] == "W1D1"
+    available_ids = {l["id"] for l in lessons if l["available"]}
+    assert available_ids == {"W1D1", "W1D2"}
 
 
 def test_w1d1_title_from_yaml():
@@ -45,7 +44,7 @@ def test_unavailable_titles_are_coming_soon():
     resp = client.get("/api/lessons")
     lessons = resp.json()["lessons"]
     unavailable = [l for l in lessons if not l["available"]]
-    assert len(unavailable) == 55
+    assert len(unavailable) == 54
     for l in unavailable:
         assert l["title"] == "Coming soon"
 

@@ -8,8 +8,11 @@ async def _empty_stream(text, voice):
         yield b""
 
 
-def test_ws_session_emits_session_start_and_agent_caption():
-    with patch("server.main.synthesize_stream", _empty_stream), \
+def test_ws_session_emits_session_start_and_agent_caption(monkeypatch):
+    # Phase-2 behavior: explicit non-streaming mode + VAD off.
+    monkeypatch.setenv("SPEAKAGENT_STREAMING", "off")
+    monkeypatch.setenv("SPEAKAGENT_VAD", "off")
+    with patch("server.ws_session.synthesize_stream", _empty_stream), \
          TestClient(app) as client:
         with client.websocket_connect("/ws/session") as ws:
             msg = ws.receive_json()

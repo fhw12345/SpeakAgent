@@ -1,4 +1,6 @@
-// web/js/app.js — view switching + dialogue logic. Push-to-talk on spacebar.
+// web/js/app.js — view switching + dialogue rendering. Session/audio/WS logic
+// lives in session.js; this file owns DOM, list/dialogue toggling, and wires
+// the start button to a Session instance.
 (function () {
   const listView = document.getElementById("list-view");
   const dialogueView = document.getElementById("dialogue-view");
@@ -11,10 +13,8 @@
   const scorecard = document.getElementById("scorecard");
   const scorecardBody = document.getElementById("scorecard-body");
   const devLog = document.getElementById("dev-log");
+  const agentCaption = document.getElementById("agent-caption");
 
-  let ws = null;
-  let audioCtx = null;
-  let recording = false;
   let currentLesson = null; // { id, order }
 
   function log(msg) {
@@ -28,7 +28,6 @@
   function showList(nextOrder) {
     dialogueView.hidden = true;
     listView.hidden = false;
-    // Reset dialogue area for a clean next session.
     dialogue.innerHTML = "";
     if (scorecard) scorecard.hidden = true;
     if (scorecardBody) scorecardBody.textContent = "";
@@ -111,10 +110,26 @@
         } else if (msg.type === "agent_caption") {
           appendDialogue("agent", msg.text, { gloss: msg.gloss, translation: msg.translation });
           currentBuffer = [];
+          if (agentCaption) agentCaption.textContent = "";
+        } else if (msg.type === "agent_partial_text") {
+          if (agentCaption) {
+            const prev = agentCaption.textContent || "";
+            agentCaption.textContent = (prev ? prev + " " : "") + msg.text;
+          }
+        } else if (msg.type === "agent_audio") {
+          const bin = atob(msg.b64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          playQueue.push([bytes.buffer]);
+          playWorker();
+        } else if (msg.type === "agent_error") {
+          log("agent_error " + msg.detail);
         } else if (msg.type === "agent_done") {
           if (currentBuffer) { playQueue.push(currentBuffer); currentBuffer = null; }
           playWorker();
+          if (msg.full_text && agentCaption) agentCaption.textContent = msg.full_text;
         } else if (msg.type === "user_prompt") {
+          if (agentCaption) agentCaption.textContent = "";
           appendDialogue("agent", "[" + msg.prompt + "]", { gloss: msg.gloss, translation: msg.translation });
           if (msg.ideal) appendDialogue("agent", "  → " + msg.ideal, {});
           pttBtn.disabled = false;
@@ -183,7 +198,10 @@
   });
 
   window.addEventListener("session_end", (e) => {
-    if (ws && ws.readyState === 1) try { ws.close(); } catch (_) {}
+    if (window.session) {
+      try { window.session.stop(); } catch (_) {}
+      window.session = null;
+    }
     const finishedOrder = e.detail && e.detail.order;
     let nextOrder = null;
     if (finishedOrder != null) {
@@ -193,20 +211,40 @@
     showList(nextOrder);
   });
 
-  if (backBtn) backBtn.addEventListener("click", () => showList());
+  if (backBtn) backBtn.addEventListener("click", () => {
+    if (window.session) {
+      try { window.session.stop(); } catch (_) {}
+      window.session = null;
+    }
+    showList();
+  });
 
-  document.addEventListener("keydown", (e) => {
-    if (e.code === "Space" && pttBtn && !pttBtn.disabled && !recording) { e.preventDefault(); startRecording(); }
-  });
-  document.addEventListener("keyup", (e) => {
-    if (e.code === "Space" && recording) { e.preventDefault(); stopRecording(); }
-  });
-  if (pttBtn) {
-    pttBtn.addEventListener("mousedown", startRecording);
-    pttBtn.addEventListener("mouseup", stopRecording);
+  if (startBtn) {
+    startBtn.addEventListener("click", async () => {
+      if (window.__speakAgentReady) {
+        try { await window.__speakAgentReady; } catch (_) {}
+      }
+      const ui = {
+        appendDialogue,
+        log,
+        setStatus: (s) => { if (statusEl) statusEl.textContent = s; },
+        startBtn,
+        pttBtn,
+        lessonTitle,
+        scorecard,
+        scorecardBody,
+        onSessionEnd: () => {
+          const finished = currentLesson;
+          window.dispatchEvent(new CustomEvent("session_end", {
+            detail: { lessonId: finished ? finished.id : null, order: finished ? finished.order : null },
+          }));
+        },
+      };
+      window.session = new window.Session(ui);
+      await window.session.start();
+    });
   }
-  if (startBtn) startBtn.addEventListener("click", startSession);
 
   // Expose for tests.
-  window.app = { showList, showDialogue };
+  window.app = { showList, showDialogue, appendDialogue };
 })();
