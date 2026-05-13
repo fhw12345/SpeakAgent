@@ -139,7 +139,7 @@ def generate_backlog_items(prd_text: str, prd_path: str) -> List[Item]:
         f"Here is the PRD (path: {prd_path}):\n\n```\n{prd_text}\n```\n\n"
         f"Break it into backlog items now. Reply ONLY with the JSON list."
     )
-    raw = _llm_call(prompt, system=_BACKLOG_SYSTEM, max_tokens=2048)
+    raw = _llm_call(prompt, system=_BACKLOG_SYSTEM, max_tokens=4096)
     raw = raw.strip()
     if raw.startswith("```"):
         raw = re.sub(r"^```(?:json)?\s*", "", raw)

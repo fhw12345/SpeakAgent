@@ -8,9 +8,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from server.config import load_config
+from server.coach import stream_agent_turn, streaming_enabled
 from server.lesson import load_lesson
 from server.logging_setup import configure_logging, get_logger
 from server.progress import ProgressStore
+from server.routes.lessons import router as lessons_router
+from server.routes.realtime import router as realtime_router
+from server.routes_config import router as config_router
 from server.session import new_session
 from server.stt import SttEngine
 from server.tts import pick_voice, synthesize_stream
@@ -22,6 +26,9 @@ _data_dir = os.environ.get("SPEAKAGENT_DATA_DIR", _cfg.data_dir)
 _progress = ProgressStore(data_dir=_data_dir)
 
 app = FastAPI(title="speakAgent")
+app.include_router(lessons_router)
+app.include_router(realtime_router)
+app.include_router(config_router)
 _stt: SttEngine | None = None
 
 
@@ -30,6 +37,17 @@ def _get_stt() -> SttEngine:
     if _stt is None:
         _stt = SttEngine(model_name=_cfg.whisper_model)
     return _stt
+
+
+@app.on_event("startup")
+async def _vad_warmup():
+    cfg = load_config()
+    if cfg.vad == "on":
+        from server import vad
+        try:
+            vad.load_model_once()
+        except Exception as e:  # pragma: no cover - logged for ops
+            _log.warning("vad_warmup_failed", error=str(e)[:200])
 
 
 @app.get("/api/today")
@@ -46,52 +64,15 @@ def api_progress():
 @app.websocket("/ws/session")
 async def ws_session(ws: WebSocket):
     await ws.accept()
-    plan = load_lesson(os.path.join(_cfg.curriculum_dir, "week1", "day1.yml"))
-    sess = new_session(plan)
-    await ws.send_json({"type": "session_start", "session_id": sess.id, "lesson": plan.title})
-
-    try:
-        while True:
-            turn = sess.coach.next_turn()
-            if turn is None:
-                await ws.send_json({"type": "session_end", "scores": [s.to_dict() for s in sess.coach.scores]})
-                break
-
-            if turn["speaker"] == "agent":
-                voice = pick_voice(week=plan.week, turn_index=sess.coach._idx)
-                await ws.send_json({
-                    "type": "agent_caption",
-                    "text": turn["say"],
-                    "voice": voice,
-                    "gloss": turn.get("gloss", []),
-                    "translation": turn.get("translation", ""),
-                })
-                async for chunk in synthesize_stream(turn["say"], voice=voice):
-                    await ws.send_bytes(chunk)
-                await ws.send_json({"type": "agent_done"})
-                _progress.append_turn(sess.id, plan.id, {"role": "agent", "text": turn["say"]})
-            else:
-                await ws.send_json({
-                    "type": "user_prompt",
-                    "prompt": turn.get("prompt", "Your turn."),
-                    "ideal": turn.get("ideal", ""),
-                    "gloss": turn.get("gloss", []),
-                    "translation": turn.get("translation", ""),
-                })
-                pcm = await _receive_user_audio(ws, sess)
-                stt_res = _get_stt().transcribe(pcm)
-                await ws.send_json({"type": "user_transcript", "text": stt_res.text, "confidence": stt_res.confidence})
-                score = sess.coach.submit_user_response(stt_res.text, stt_res.words, stt_res.confidence)
-                await ws.send_json({"type": "score", "score": score.to_dict()})
-                _progress.append_turn(sess.id, plan.id, {
-                    "role": "user", "text": stt_res.text, "score": score.to_dict(),
-                })
-    except (WebSocketDisconnect, RuntimeError):
-        _log.info("ws_disconnect", session_id=sess.id)
+    from server.ws_session import handle
+    await handle(ws)
 
 
 async def _receive_user_audio(ws: WebSocket, sess) -> np.ndarray:
-    """Receive a user_audio_start ... user_audio_end window. Audio frames arrive as bytes."""
+    """Receive a user_audio_start ... user_audio_end window. Audio frames arrive as bytes.
+
+    Retained for backward-compat with tests/utilities that import it.
+    """
     sess.audio_buffer.clear()
     while True:
         msg = await ws.receive()

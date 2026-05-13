@@ -25,7 +25,7 @@ def _fake_transcribe(self, pcm):
 
 def test_full_session_round_trip():
     fake_judge = '{"content_score": 5, "rewrite": "Hello and welcome to the interview.", "issues": []}'
-    with patch("server.main.synthesize_stream", _empty_stream), \
+    with patch("server.ws_session.synthesize_stream", _empty_stream), \
          patch("server.stt.SttEngine.transcribe", _fake_transcribe), \
          patch("server.scorer.call_with_fallback", return_value=fake_judge), \
          TestClient(app) as client:

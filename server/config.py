@@ -1,7 +1,37 @@
 """Single config surface. All env reads happen here."""
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List
+
+
+def _load_dotenv() -> None:
+    """Best-effort .env loader — sets os.environ keys that aren't already set.
+    Real environment variables (e.g. inline `KEY=v python ...`) take precedence
+    over .env. No new dependency; ~10 lines of stdlib parsing."""
+    candidates = []
+    here = Path(__file__).resolve()
+    for parent in (here.parent, here.parent.parent):
+        candidates.append(parent / ".env")
+    for env_file in candidates:
+        if not env_file.is_file():
+            continue
+        try:
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+        except OSError:
+            continue
+        return  # only load the first .env we find
+
+
+_load_dotenv()
 
 
 VOICES_ALL = [
@@ -29,6 +59,7 @@ class Config:
     voices: List[str] = field(default_factory=lambda: list(VOICES_ALL))
     curriculum_dir: str = "curriculum"
     data_dir: str = "data"
+    vad: str = "off"
 
 
 def load_config() -> Config:
@@ -45,6 +76,7 @@ def load_config() -> Config:
         azure_api_key=os.environ.get("AZURE_OPENAI_API_KEY", ""),
         azure_model=os.environ.get("AZURE_OPENAI_MODEL", "gpt-5.4-mini"),
         whisper_model=os.environ.get("WHISPER_MODEL", "small"),
+        vad=("on" if os.environ.get("SPEAKAGENT_VAD", "").strip().lower() in {"on", "true", "1", "yes"} else "off"),
     )
 
 

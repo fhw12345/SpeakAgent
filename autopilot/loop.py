@@ -49,6 +49,8 @@ def _spawn_claude(item: Item, worktree: str):
     """Run `claude -p` headless inside the worktree. Returns the CompletedProcess.
 
     All subagents use opus and bypass permission prompts (autopilot is unattended).
+    Force UTF-8 decoding so non-ASCII output (e.g. from emoji or CJK) doesn't
+    crash on Windows where the default locale is cp936/GBK.
     """
     exe = _claude_executable()
     cmd = [
@@ -58,9 +60,13 @@ def _spawn_claude(item: Item, worktree: str):
         item.prompt,
     ]
     _log.info("spawn_claude_start", slug=item.slug, worktree=worktree, exe=exe)
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60 * 30, cwd=worktree)
+    proc = subprocess.run(
+        cmd, capture_output=True, timeout=60 * 30, cwd=worktree,
+        text=True, encoding="utf-8", errors="replace",
+    )
     _log.info("spawn_claude_done", slug=item.slug, rc=proc.returncode,
-              stdout_chars=len(proc.stdout or ""), stderr_chars=len(proc.stderr or ""))
+              stdout_chars=len(proc.stdout or ""), stderr_chars=len(proc.stderr or ""),
+              stdout_tail=(proc.stdout or "")[-300:])
     return proc
 
 
@@ -129,6 +135,11 @@ def _repo_root() -> str:
 def _make_worktree(slug: str) -> str:
     """Create a fresh git worktree under the MAIN repo's .claude/worktrees/.
 
+    Branched off the CURRENT HEAD (not main) so the subagent sees:
+    - the autopilot/prds/ directory it needs to read for context
+    - the latest spec, curriculum, code, and tests
+    - any in-progress work on this development branch
+
     Avoids nesting (we may already be inside a worktree). Branch named
     autopilot/<date>-<slug> so commits land on the policy-mandated prefix
     automatically.
@@ -138,11 +149,17 @@ def _make_worktree(slug: str) -> str:
     path = os.path.join(repo, ".claude", "worktrees", f"autopilot-{today}-{slug}")
     branch = f"autopilot/{today}-{slug}"
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    # Resolve our current HEAD to a SHA so the new worktree branches from it.
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
     proc = subprocess.run(
-        ["git", "-C", repo, "worktree", "add", "-b", branch, path],
+        ["git", "-C", repo, "worktree", "add", "-b", branch, path, head_sha],
         capture_output=True, text=True,
     )
-    _log.info("make_worktree", path=path, branch=branch, rc=proc.returncode,
+    _log.info("make_worktree", path=path, branch=branch, base_sha=head_sha[:8],
+              rc=proc.returncode,
               stderr=proc.stderr[:200] if proc.stderr else "")
     return path
 

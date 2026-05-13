@@ -5,28 +5,48 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>speakAgent</title>
   <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/css/list.css" />
 </head>
 <body>
   <header>
     <h1>speakAgent</h1>
-    <span id="lesson-title">Loading…</span>
+    <span id="lesson-title"></span>
   </header>
   <main>
-    <section id="dialogue"></section>
-    <section id="controls">
-      <button id="start-btn">Start lesson</button>
-      <button id="ptt-btn" disabled>Hold SPACE to talk</button>
-      <span id="status">idle</span>
+    <section id="list-view">
+      <h2>Course</h2>
+      <div id="lesson-list"></div>
+      <div id="list-notice" hidden></div>
     </section>
-    <section id="scorecard" hidden>
-      <h2>Scorecard</h2>
-      <pre id="scorecard-body"></pre>
+    <section id="dialogue-view" hidden>
+      <button id="back-btn" type="button">&larr; Back to course</button>
+      <section id="dialogue"></section>
+      <div id="agent-caption"></div>
+      <section id="controls">
+        <button id="start-btn">Start lesson</button>
+        <button id="ptt-btn" disabled>Hold SPACE to talk</button>
+        <span id="status">idle</span>
+      </section>
+      <section id="scorecard" hidden>
+        <h2>Scorecard</h2>
+        <pre id="scorecard-body"></pre>
+      </section>
+      <details id="dev-panel">
+        <summary>Dev panel</summary>
+        <pre id="dev-log"></pre>
+      </details>
     </section>
-    <details id="dev-panel">
-      <summary>Dev panel</summary>
-      <pre id="dev-log"></pre>
-    </details>
   </main>
-  <script src="/static/app.js"></script>
+  <script src="/static/js/list_view.js"></script>
+  <script>
+    // Bootstrap: fetch /config and set window.SPEAKAGENT_VAD before session.js uses it.
+    window.__speakAgentReady = fetch('/config').then(function (r) { return r.json(); }).then(function (c) {
+      window.SPEAKAGENT_VAD = (c && c.vad) || 'off';
+    }).catch(function () { window.SPEAKAGENT_VAD = 'off'; });
+  </script>
+  <script src="/static/audio/tts-player.js"></script>
+  <script src="/static/audio/mic-client.js"></script>
+  <script src="/static/js/session.js"></script>
+  <script src="/static/js/app.js"></script>
 </body>
 </html>

@@ -1,0 +1,29 @@
+id: w1d2
+title: "Week 1 Day 2 — Realtime conversation: tools and APIs"
+week: 1
+mode: realtime
+
+topic: "tools and APIs"
+
+target_phrases:
+  - "An API is an interface between two programs."
+  - "I use this tool to call the model."
+  - "The function returns a JSON response."
+  - "This endpoint requires authentication."
+  - "I send a POST request with the payload."
+
+vocabulary:
+  - API
+  - endpoint
+  - request
+  - response
+  - JSON
+  - authentication
+  - payload
+  - webhook
+  - SDK
+  - rate limit
+
+coach_persona: >-
+  a friendly senior engineer who coaches Chinese learners on speaking
+  about software tools and APIs in clear, plain English

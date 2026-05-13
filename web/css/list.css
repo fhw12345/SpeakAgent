@@ -1,0 +1,28 @@
+#list-view { padding: 0.5rem 0; }
+#list-view h2 { margin: 0 0 0.75rem; font-size: 1.1rem; color: #333; }
+#lesson-list { display: flex; flex-direction: column; gap: 4px; }
+.lesson-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid #ddd; border-radius: 6px;
+  background: white; cursor: pointer;
+  font-size: 0.95rem;
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+.lesson-row .lesson-id { color: #555; font-weight: 600; min-width: 4em; }
+.lesson-row .lesson-title { flex: 1; margin-left: 0.6rem; color: #222; }
+.lesson-row:hover { background: #f0f7ff; border-color: #b8d4f0; }
+.lesson-row.unavailable { color: #999; cursor: not-allowed; background: #fafafa; }
+.lesson-row.unavailable .lesson-title { color: #999; }
+.lesson-row.unavailable:hover { background: #fafafa; border-color: #ddd; }
+.lesson-row.next-lesson {
+  border-color: #f0a500; background: #fffbea;
+  box-shadow: 0 0 0 2px rgba(240, 165, 0, 0.15);
+}
+#list-notice {
+  margin-top: 0.5rem; padding: 0.5rem 0.75rem;
+  background: #fff3cd; border: 1px solid #ffe69c; border-radius: 4px;
+  color: #664d03; font-size: 0.9rem;
+}
+#back-btn { margin-bottom: 0.5rem; background: transparent; border: none; color: #035; cursor: pointer; padding: 0; font-size: 0.95rem; }
+#back-btn:hover { text-decoration: underline; }
