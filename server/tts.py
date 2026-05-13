@@ -81,3 +81,11 @@ async def synthesize_stream(text: str, voice: str) -> AsyncIterator[bytes]:
     except Exception as e:
         _log.error("tts_all_backends_failed", voice=voice, error=str(e)[:200])
         raise
+
+
+async def synthesize_bytes(text: str, voice: str) -> bytes:
+    """Synthesize one sentence into a single MP3 blob (for streaming agent path)."""
+    chunks: list[bytes] = []
+    async for chunk in synthesize_stream(text, voice=voice):
+        chunks.append(chunk)
+    return b"".join(chunks)

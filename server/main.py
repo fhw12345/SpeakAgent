@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from server.config import load_config
+from server.coach import stream_agent_turn, streaming_enabled
 from server.lesson import load_lesson
 from server.logging_setup import configure_logging, get_logger
 from server.progress import ProgressStore
@@ -63,17 +64,29 @@ async def ws_session(ws: WebSocket):
 
             if turn["speaker"] == "agent":
                 voice = pick_voice(week=plan.week, turn_index=sess.coach._idx)
-                await ws.send_json({
-                    "type": "agent_caption",
-                    "text": turn["say"],
-                    "voice": voice,
-                    "gloss": turn.get("gloss", []),
-                    "translation": turn.get("translation", ""),
-                })
-                async for chunk in synthesize_stream(turn["say"], voice=voice):
-                    await ws.send_bytes(chunk)
-                await ws.send_json({"type": "agent_done"})
-                _progress.append_turn(sess.id, plan.id, {"role": "agent", "text": turn["say"]})
+                if streaming_enabled():
+                    await ws.send_json({
+                        "type": "agent_caption",
+                        "text": turn["say"],
+                        "voice": voice,
+                        "gloss": turn.get("gloss", []),
+                        "translation": turn.get("translation", ""),
+                    })
+                    msgs = [{"role": "user", "content": turn["say"]}]
+                    full = await stream_agent_turn(ws, msgs, voice)
+                    _progress.append_turn(sess.id, plan.id, {"role": "agent", "text": full or turn["say"]})
+                else:
+                    await ws.send_json({
+                        "type": "agent_caption",
+                        "text": turn["say"],
+                        "voice": voice,
+                        "gloss": turn.get("gloss", []),
+                        "translation": turn.get("translation", ""),
+                    })
+                    async for chunk in synthesize_stream(turn["say"], voice=voice):
+                        await ws.send_bytes(chunk)
+                    await ws.send_json({"type": "agent_done"})
+                    _progress.append_turn(sess.id, plan.id, {"role": "agent", "text": turn["say"]})
             else:
                 await ws.send_json({
                     "type": "user_prompt",
