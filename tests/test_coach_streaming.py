@@ -116,7 +116,7 @@ def test_streaming_off_falls_back_to_phase2_no_partials(monkeypatch):
     monkeypatch.setenv("SPEAKAGENT_STREAMING", "off")
     from server.main import app
 
-    with patch("server.main.synthesize_stream", empty_stream), TestClient(app) as client:
+    with patch("server.ws_session.synthesize_stream", empty_stream), TestClient(app) as client:
         with client.websocket_connect("/ws/session") as ws:
             seen_types: list[str] = []
             for _ in range(3):
