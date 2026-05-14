@@ -1,0 +1,19 @@
+[core]
+workspace_base = "/opt/workspace"
+workspace_mount_path = "/opt/workspace"
+workspace_mount_path_in_sandbox = "/workspace"
+
+[llm]
+model = "anthropic/claude-opus-4.7-1m-internal[1m]"
+api_key = "Powered by Agent Maestro"
+base_url = "http://host.docker.internal:23333/api/anthropic"
+custom_llm_provider = "anthropic"
+disable_vision = true
+
+[agent]
+memory_enabled = false
+
+[sandbox]
+runtime_container_image = "docker.all-hands.dev/all-hands-ai/runtime:latest-nikolaik"
+base_container_image = "nikolaik/python-nodejs:python3.12-nodejs22"
+timeout = 120

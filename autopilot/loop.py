@@ -70,6 +70,28 @@ def _spawn_claude(item: Item, worktree: str):
     return proc
 
 
+def _spawn_runner(item: Item, worktree: str):
+    """Dispatch to the configured runner. Selected by AUTOPILOT_RUNNER env
+    var: 'claude' (default, legacy) or 'openhands'. Both return a
+    subprocess.CompletedProcess with .returncode/.stdout/.stderr."""
+    runner = os.environ.get("AUTOPILOT_RUNNER", "claude").lower()
+    if runner == "openhands":
+        from autopilot.runners.openhands_runner import spawn_openhands
+        _log.info("spawn_runner", runner="openhands", slug=item.slug, worktree=worktree)
+        proc = spawn_openhands(item, worktree)
+        # OpenHands writes its trajectory to stderr; stdout is just the
+        # entrypoint banner. Tail stderr instead so the log shows the
+        # agent's last action, not "Starting OpenHands...".
+        trajectory = proc.stderr or proc.stdout or ""
+        _log.info("spawn_runner_done", runner="openhands", slug=item.slug,
+                  rc=proc.returncode,
+                  stdout_chars=len(proc.stdout or ""),
+                  stderr_chars=len(proc.stderr or ""),
+                  trajectory_tail=trajectory[-300:])
+        return proc
+    return _spawn_claude(item, worktree)
+
+
 def _verify(worktree: str) -> bool:
     """Run unit + eval + e2e suites inside the worktree.
 
@@ -180,7 +202,7 @@ def run_once(pause_path: str = "autopilot/PAUSE",
 
     _log.info("autopilot_pick", slug=picked.slug, priority=picked.priority, source=picked.source)
     worktree = _make_worktree(picked.slug)
-    proc = _spawn_claude(picked, worktree)
+    proc = _spawn_runner(picked, worktree)
     _log.info("claude_done", slug=picked.slug, rc=proc.returncode)
 
     if not _verify(worktree):

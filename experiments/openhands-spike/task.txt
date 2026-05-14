@@ -1,0 +1,11 @@
+PRD: autopilot/prds/2026-05-13-phase-3-of-conversational-coac.md
+
+Read the PRD first, then implement this slice:
+
+Per PRD, create server/sentence_splitter.py implementing class SentenceAccumulator with methods push(delta:str)->list[str] and flush()->list[str]. Splits on '.', '!', '?', or newline; only emits sentences >=4 chars (so 'Mr.' and '3.14' don't split prematurely - keep accumulating). Preserves trailing partial text between push calls.
+
+Also create tests/test_sentence_splitter.py with unit tests covering: multi-sentence input across multiple pushes, trailing partial preserved, flush returns leftover, abbreviations like 'Mr.' and decimals '3.14' do not split, mixed terminators including newline.
+
+Use pytest. Run tests to confirm pass.
+
+Constraints: TDD (test first), commit on completion, do not modify autopilot/ or server/llm.py.

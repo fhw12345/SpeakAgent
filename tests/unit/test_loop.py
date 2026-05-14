@@ -1,5 +1,5 @@
 from unittest.mock import patch, MagicMock
-from autopilot.loop import run_once, LoopResult, _claude_executable, _spawn_claude
+from autopilot.loop import run_once, LoopResult, _claude_executable, _spawn_claude, _spawn_runner
 from autopilot.backlog import Item
 
 
@@ -84,3 +84,33 @@ def test_spawn_claude_uses_opus_and_bypass_permissions(tmp_path):
     assert "bypassPermissions" in captured["cmd"]
     assert captured["cmd"][-1] == "do thing"
     assert captured["cwd"] == str(tmp_path)
+
+
+def test_spawn_runner_defaults_to_claude(tmp_path, monkeypatch):
+    monkeypatch.delenv("AUTOPILOT_RUNNER", raising=False)
+    item = Item(slug="x", priority=1, source="t", prompt="p")
+    fake = MagicMock(returncode=0, stdout="", stderr="")
+    with patch("autopilot.loop._spawn_claude", return_value=fake) as claude_spawn:
+        _spawn_runner(item, str(tmp_path))
+    claude_spawn.assert_called_once_with(item, str(tmp_path))
+
+
+def test_spawn_runner_dispatches_to_openhands_when_env_set(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOPILOT_RUNNER", "openhands")
+    item = Item(slug="x", priority=1, source="t", prompt="p")
+    fake = MagicMock(returncode=0, stdout="trajectory", stderr="")
+    with patch("autopilot.runners.openhands_runner.spawn_openhands",
+               return_value=fake) as oh_spawn, \
+         patch("autopilot.loop._spawn_claude") as claude_spawn:
+        _spawn_runner(item, str(tmp_path))
+    oh_spawn.assert_called_once_with(item, str(tmp_path))
+    claude_spawn.assert_not_called()
+
+
+def test_spawn_runner_unknown_value_falls_back_to_claude(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOPILOT_RUNNER", "wat")
+    item = Item(slug="x", priority=1, source="t", prompt="p")
+    fake = MagicMock(returncode=0, stdout="", stderr="")
+    with patch("autopilot.loop._spawn_claude", return_value=fake) as claude_spawn:
+        _spawn_runner(item, str(tmp_path))
+    claude_spawn.assert_called_once()
