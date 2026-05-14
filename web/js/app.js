@@ -193,7 +193,7 @@
 
   // Event wiring.
   window.addEventListener("lesson:open", (e) => {
-    currentLesson = { id: e.detail.id, order: e.detail.order };
+    currentLesson = { id: e.detail.id, order: e.detail.order, mode: e.detail.mode || "scripted" };
     showDialogue(e.detail.id);
   });
 
@@ -240,7 +240,10 @@
           }));
         },
       };
-      window.session = new window.Session(ui);
+      window.session = new window.Session(ui, {
+        lessonId: currentLesson ? currentLesson.id : "W1D1",
+        mode: currentLesson ? currentLesson.mode : "scripted",
+      });
       await window.session.start();
     });
   }

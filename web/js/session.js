@@ -12,8 +12,10 @@
   }
 
   class Session {
-    constructor(ui) {
+    constructor(ui, opts) {
       this.ui = ui;
+      this.lessonId = (opts && opts.lessonId) || 'W1D1';
+      this.mode = (opts && opts.mode) || 'scripted';
       this.ws = null;
       this.ttsPlayer = null;
       this.micClient = null;
@@ -25,6 +27,8 @@
       this.pttCtx = null;
       this.pttStream = null;
       this.pttProc = null;
+      // realtime REST state
+      this.realtimeSessionId = null;
       // bound spacebar handlers (so stop() can remove them)
       this._kd = null;
       this._ku = null;
@@ -43,7 +47,16 @@
       if (this.ui.startBtn) this.ui.startBtn.disabled = true;
       this.ui.setStatus('connecting');
 
-      this.ws = new WebSocket(`ws://${location.host}/ws/session`);
+      if (this.mode === 'realtime') {
+        // Realtime mode also uses the WS so STT/TTS audio flows the same
+        // way as scripted lessons; the server-side ws_session router
+        // dispatches to handle_realtime_ws based on the mode query param.
+        const qs = `?lesson_id=${encodeURIComponent(this.lessonId)}&mode=realtime`;
+        this.ws = new WebSocket(`ws://${location.host}/ws/session${qs}`);
+      } else {
+        const qs = `?lesson_id=${encodeURIComponent(this.lessonId)}`;
+        this.ws = new WebSocket(`ws://${location.host}/ws/session${qs}`);
+      }
       this.ws.binaryType = 'arraybuffer';
 
       if (metricsEnabled()) {

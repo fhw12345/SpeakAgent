@@ -24,22 +24,41 @@ def _yaml_path_for(lesson_id: str) -> str:
     return os.path.join(cfg.curriculum_dir, f"week{week}", f"day{day}.yml")
 
 
-def load_lesson_title(lesson_id: str) -> Optional[str]:
-    """Read the `title` field from the lesson YAML. Returns None if missing/malformed."""
+def _read_yaml(lesson_id: str) -> Optional[dict]:
     path = _yaml_path_for(lesson_id)
     if not os.path.isfile(path):
         return None
     try:
         with open(path, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
+            return yaml.safe_load(f) or {}
     except (yaml.YAMLError, OSError) as e:
         _log.warning("lesson_yaml_unreadable", lesson_id=lesson_id, path=path, err=str(e))
         return None
+
+
+def load_lesson_title(lesson_id: str) -> Optional[str]:
+    """Read the `title` field from the lesson YAML. Returns None if missing/malformed."""
+    data = _read_yaml(lesson_id)
+    if data is None:
+        return None
     title = data.get("title")
     if not isinstance(title, str) or not title.strip():
-        _log.warning("lesson_yaml_missing_title", lesson_id=lesson_id, path=path)
+        _log.warning("lesson_yaml_missing_title", lesson_id=lesson_id, path=_yaml_path_for(lesson_id))
         return None
     return title
+
+
+def load_lesson_mode(lesson_id: str) -> str:
+    """Returns 'scripted' or 'realtime'. Defaults to 'scripted' when YAML
+    omits the field (so older lessons without explicit mode stay scripted)."""
+    data = _read_yaml(lesson_id)
+    if data is None:
+        return "scripted"
+    raw = data.get("mode", "scripted")
+    if raw not in ("scripted", "realtime"):
+        _log.warning("lesson_yaml_invalid_mode", lesson_id=lesson_id, raw=raw)
+        return "scripted"
+    return raw
 
 
 def build_catalog() -> list[dict]:
@@ -52,14 +71,17 @@ def build_catalog() -> list[dict]:
             available = os.path.isfile(_yaml_path_for(lesson_id))
             if available:
                 title = load_lesson_title(lesson_id) or f"Lesson {lesson_id}"
+                mode = load_lesson_mode(lesson_id)
             else:
                 title = "Coming soon"
+                mode = "scripted"
             out.append({
                 "id": lesson_id,
                 "week": week,
                 "day": day,
                 "title": title,
                 "available": available,
+                "mode": mode,
                 "order": order,
             })
             order += 1

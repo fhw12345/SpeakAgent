@@ -41,9 +41,17 @@ _FRAME_BYTES = 1024  # 512 int16 samples @ 16 kHz
 _MAX_SEGMENT_BYTES = 32000 * 2 * 30  # ~30 s of int16 mono @ 16 kHz
 
 
-def _curriculum_path() -> str:
+def _curriculum_path(lesson_id: str = "W1D1") -> str:
+    """Resolve W1D1 -> {curriculum_dir}/week1/day1.yml. Falls back to
+    week1/day1.yml when lesson_id is malformed (preserves prior default)."""
     cfg = load_config()
-    return os.path.join(cfg.curriculum_dir, "week1", "day1.yml")
+    try:
+        week = int(lesson_id[1:lesson_id.index("D")])
+        day = int(lesson_id[lesson_id.index("D") + 1:])
+    except (ValueError, IndexError):
+        _log.warning("ws_session_invalid_lesson_id", lesson_id=lesson_id)
+        week, day = 1, 1
+    return os.path.join(cfg.curriculum_dir, f"week{week}", f"day{day}.yml")
 
 
 async def _receive_user_audio(ws: WebSocket, sess) -> np.ndarray:
@@ -259,21 +267,95 @@ async def handle_vad(ws: WebSocket, sess, plan, get_stt, progress) -> None:
         turn_task.cancel()
 
 
+async def handle_realtime_ws(ws: WebSocket, plan, get_stt) -> None:
+    """Realtime mode over WS: push-to-talk audio in, LLM-driven coach,
+    Azure TTS audio out. The user can do at most MAX_USER_TURNS exchanges
+    or the LLM emits [[END_LESSON]].
+
+    Protocol per turn after session_start:
+      server -> client: agent_caption {text}, then audio bytes, then agent_done
+      client -> server: PCM bytes... then text {"type":"user_audio_end"}
+      server -> client: user_transcript {text}, then next agent turn
+      ...
+      server -> client: session_end {}
+    """
+    from server.lesson_loader import load as load_spec
+    from server import coach_realtime
+
+    spec = load_spec(plan.id)
+    sid, first_utt = coach_realtime.start_session(spec)
+
+    async def speak(text: str, idx: int) -> None:
+        v = pick_voice(week=plan.week, turn_index=idx)
+        await ws.send_json({
+            "type": "agent_caption",
+            "text": text,
+            "voice": v,
+        })
+        async for chunk in synthesize_stream(text, voice=v):
+            await ws.send_bytes(chunk)
+        await ws.send_json({"type": "agent_done"})
+
+    turn_idx = 0
+    await speak(first_utt, turn_idx)
+    turn_idx += 1
+
+    while True:
+        await ws.send_json({"type": "user_prompt", "prompt": "Reply when ready."})
+        # No Coach in realtime mode — pass a tiny shim with audio_buffer so
+        # _receive_user_audio can clear/append. The real session_id is the
+        # coach_realtime sid above.
+        class _Buf:
+            audio_buffer = bytearray()
+        buf = _Buf()
+        pcm = await _receive_user_audio(ws, buf)
+
+        stt_res = get_stt().transcribe(pcm)
+        await ws.send_json({
+            "type": "user_transcript",
+            "text": stt_res.text,
+            "confidence": stt_res.confidence,
+        })
+
+        if not stt_res.text.strip():
+            # nothing recognised — re-prompt without consuming a turn
+            continue
+
+        result = coach_realtime.handle_turn(sid, stt_res.text)
+        utterance = result.get("agent_utterance", "")
+        if utterance:
+            await speak(utterance, turn_idx)
+            turn_idx += 1
+        if result.get("done"):
+            await ws.send_json({"type": "session_end", "scores": []})
+            return
+
+
 async def handle(ws: WebSocket) -> None:
     # Lazy imports keep the legacy main.py exports untouched.
     from server.main import _get_stt, _progress
 
     cfg = load_config()
-    plan = load_lesson(_curriculum_path())
+    lesson_id = ws.query_params.get("lesson_id", "W1D1") or "W1D1"
+    mode_q = ws.query_params.get("mode", "") or ""
+    path = _curriculum_path(lesson_id)
+    if not os.path.isfile(path):
+        await ws.send_json({"type": "error", "detail": f"lesson not found: {lesson_id}"})
+        await ws.close()
+        return
+    plan = load_lesson(path)
     sess = new_session(plan)
     await ws.send_json({
         "type": "session_start",
         "session_id": sess.id,
         "lesson": plan.title,
+        "lesson_id": lesson_id,
     })
 
     try:
-        if cfg.vad == "on":
+        if mode_q == "realtime":
+            await handle_realtime_ws(ws, plan, _get_stt)
+        elif cfg.vad == "on":
             await handle_vad(ws, sess, plan, _get_stt, _progress)
         else:
             await handle_legacy(ws, sess, plan, _get_stt, _progress)

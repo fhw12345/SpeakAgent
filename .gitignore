@@ -8,3 +8,6 @@ data/listening/
 data/vocab_srs.sqlite
 autopilot/runs/
 .claude/worktrees/
+*-debug.log
+experiments/openhands-spike/state/
+experiments/openhands-spike/run-*.log

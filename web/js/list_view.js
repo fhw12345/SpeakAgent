@@ -24,6 +24,7 @@
       row.dataset.id = l.id;
       row.dataset.order = String(l.order);
       row.dataset.available = String(l.available);
+      row.dataset.mode = l.mode || "scripted";
 
       const id = document.createElement("span");
       id.className = "lesson-id";
@@ -36,6 +37,16 @@
       title.className = "lesson-title";
       title.textContent = l.title;
 
+      // tiny mode badge
+      if (l.available && l.mode === "realtime") {
+        const badge = document.createElement("span");
+        badge.className = "lesson-badge";
+        badge.textContent = " · realtime";
+        badge.style.color = "#06a";
+        badge.style.fontSize = ".8em";
+        title.appendChild(badge);
+      }
+
       row.appendChild(id);
       row.appendChild(sep);
       row.appendChild(title);
@@ -46,7 +57,7 @@
           return;
         }
         window.dispatchEvent(new CustomEvent("lesson:open", {
-          detail: { id: l.id, order: l.order },
+          detail: { id: l.id, order: l.order, mode: l.mode || "scripted" },
         }));
       });
 
